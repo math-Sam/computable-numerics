@@ -1,164 +1,114 @@
 # Computable Current
 
-> 一個以「精確有理數 + 比較 oracle 定義的可計算實數」為核心的單檔數值模組。
+給 Python 使用的**精確有理數**與**以 oracle 定義的可計算實數**。
 
-`Computable_current.py` 的目標不是提供「更多位數的浮點數」，而是把數值拆成兩個本質不同的層次：
+`Computable_current.py` 是一個單檔數值模組，清楚區分兩種本質不同的數：
 
-- **`ComputableRational`**：精確有理數
-- **`ComputableReal`**：以「對任意有理數的比較 oracle」定義的可計算實數
+- `ComputableRational`：精確有理數
+- `ComputableReal`：透過與有理數比較來定義的可計算實數
 
-**這個模組適合的場景：**
+這個專案**不是**一個只是想印出更多位數的小數套件。它更像一個小型數值核心，適合用在你需要下列能力的場景：
 
 - 精確分數運算
-- 將不可直接寫成分數的值表示為可比較、可逼近的實數
-- 在需要時才要求更高精度
-- 取得分母受限的有理近似
-- 以嚴格區間而非單點浮點近似來描述誤差
+- 不必承諾固定小數展開、但仍可比較與逐步逼近的實數
+- 分母受限的有理近似
+- 以區間呈現的誤差保證
+- 以及只在真正需要時才計算的精度
 
-## 目錄
+## 為什麼會有這個專案
 
-- [設計核心](#設計核心)
-- [模組結構](#模組結構)
-- [這個模組不是什麼](#這個模組不是什麼)
-- [快速開始](#快速開始)
-- [心智模型](#心智模型)
-- [精度與表示](#精度與表示)
-- [內建常數](#內建常數)
-- [根尋找](#根尋找)
-- [雜湊與快取](#雜湊與快取)
-- [目前功能範圍](#目前功能範圍)
-- [需求](#需求)
-- [匯入方式](#匯入方式)
-- [一句話總結](#一句話總結)
+多數 Python 數值工具優先考慮的是：
 
-## 設計核心
+- 快速的浮點運算，或
+- symbolic manipulation（符號操作）
 
-### 1. 有理數與實數分開建模
+這個模組走的是另一條路：
 
-這個模組最重要的設計不是 API，而是數學模型：
+- 有理數始終保持精確
+- 實數以 **sign oracle** 表示
+- 近似值不是單一小數，而是帶保證的區間
+- refinement 只會在下游操作真的需要時才發生
 
-- `ComputableRational` 直接儲存分子、分母，所有值都可精確表示
-- `ComputableReal` 不直接儲存十進位展開，而是儲存一個 **sign oracle**
+換句話說，這個模組更接近一個**可計算實數的執行時系統（exact / computable real runtime）**，而不是 arbitrary-precision decimal library。
 
-對任意有理數 `q`，這個 oracle 會回答 `q` 與目標實數 `x` 的大小關係：
-
-- `-1`：查詢值 `<` 真值
-- `0`：查詢值 `==` 真值
-- `1`：查詢值 `>` 真值
-
-也就是說，`ComputableReal` 的本質是「可比較的實數」，不是「預先算好的高精度小數」。
-
-### 2. 精度是按需求傳播的
-
-`ComputableReal` 會維護目前已知的有理區間，並在比較、輸出、或要求更細近似時才做 refinement。這使得：
-
-- 上游節點一旦被逼近，下游節點可以重用這些資訊
-- 不需要在每一步運算都主動把值算到固定精度
-- 誤差控制是系統的一級功能，不是附帶效果
-
-### 3. 運算圖是隱式的
-
-`ComputableReal` 的四則運算不會直接把值壓成浮點數，而是建立新的 `ComputableReal`，其 sign function 會閉包引用上游運算元。整體上，所有 `ComputableReal` 物件形成一張 **隱式 DAG**：
-
-- 邊不是顯式資料結構
-- 依賴關係由 Python closure 表示
-- 精度由下游需求反向推動到上游
-
-### 4. 有理數物件有 mutable / frozen 兩種生命週期
-
-`ComputableRational` 不是單純的 immutable fraction 類別。它同時支援：
-
-- **frozen / canonical** 物件：適合共享、快取、hash、做 key
-- **mutable** 物件：適合大量中間運算，避免每一步都重新 canonicalize
-
-這個設計讓模組可以同時兼顧：
-
-- 精確語意
-- 記憶體共享
-- 中間運算效能
-
-## 模組結構
-
-| 型別 | 角色 | 核心特性 |
-| --- | --- | --- |
-| `ComputableRational` | 精確有理數 | 精確表示、可 canonicalize、可快取 |
-| `ComputableReal` | 可計算實數 | 以比較 oracle 定義、可逐步 refinement |
+## 特色
 
 ### `ComputableRational`
 
-`ComputableRational` 是精確有理數型別。
-
-**支援的輸入：**
-
-- `int`
-- `(numerator, denominator)`
-- `fractions.Fraction`
-- `str`
-- `float`
-- 巢狀 tuple
-- 另一個 `ComputableRational`
-
-**重點能力：**
-
+- 精確有理數四則運算
 - 自動正規化與約分
-- 以全域快取維護 canonical frozen 值
-- 內建 `ZERO`, `ONE`, `infty`, `minfty`, `nan`
-- 支援 `+ - * / // % divmod **`
-- 支援分母受限近似：`rational_bound`, `rational_floor`, `rational_ceil`, `rational_round`
-- 支援 `iroot()` 與 `logarithm()`
-- 當結果仍為有理數時，優先保留在 `ComputableRational`
+- 具有全域快取的 canonical frozen 物件
+- 適合中間計算的 mutable 物件
+- 透過 `rational_bound()`、`rational_floor()`、`rational_ceil()`、`rational_round()` 提供分母受限近似
+- 提供 `as_integer_ratio()`、`to_scientific_notation()`、`float_bound()` 等精確／區間安全輸出工具
+- 額外支援整數根與有理對數等操作
 
 ### `ComputableReal`
 
-`ComputableReal` 是可計算實數型別。
+- 不靠預先儲存小數展開，而是以比較 oracle 定義實數
+- 內建常數 `PI` 與 `E`
+- 在 `+`、`-`、`*`、`/` 下封閉
+- 透過 `current_bound()` 提供有保證的有理區間
+- 透過 `refine_to_width()` 支援需求驅動 refinement
+- 透過 `rational_bound(max_denominator)` 提供分母受限的有理近似
+- 透過 `float_bound()` 提供區間安全的浮點輸出
+- 可用 `root_finding()` 從連續函數與異號區間建立根
 
-**建立方式：**
+## 需求
 
-1. 從精確有理數建立
-2. 使用內建常數 `PI`, `E`
-3. 提供 sign function 建立新實數
+- **Python 3.14+**
+- 不需要第三方套件
 
-**重點能力：**
+## 安裝
 
-- 不是固定精度數值，而是可逐步逼近的數值物件
-- 同時追蹤兩層區間資訊：動態查詢區間與結構化 refinement 區間
-- 支援 `+ - * /`，且運算結果仍維持在 `ComputableReal`
-- 支援 `current_bound`, `current_width`, `refine_to_width`
-- 支援 `rational_bound(max_denominator)` 取得受限分母近似
-- 支援 `float_bound()`，以區間方式描述浮點輸出誤差
-- 支援 `root_finding()` 以連續函數和異號區間建立實數根
+目前這個專案是一個單檔模組。
 
-## 這個模組不是什麼
+把 `Computable_current.py` 放到你的 Python path 中，然後直接匯入：
 
-**它不是：**
+```python
+from Computable_current import ComputableRational, ComputableReal
+```
 
-- 一般意義上的 arbitrary precision decimal library
-- 以小數位數為中心的高精度浮點包裝器
-- 純 symbolic CAS
+或
 
-**它更接近：**
-
-> 一個把精確有理數、可計算實數、區間逼近、與需求驅動精度傳播整合在一起的數值核心。
+```python
+from Computable_current import ComputableRational as Q, ComputableReal as R
+```
 
 ## 快速開始
-
-### 基本範例
 
 ```python
 from Computable_current import ComputableRational as Q, ComputableReal as R
 
-a = Q(3, 4)
-b = Q("1.25")
+x = Q(3, 4)
+y = Q("1.25")
 pi = R.PI
 sqrt2 = Q(2) ** Q(1, 2)
 
-print(a)             # 3/4
-print(b)             # 5/4
-print(float(pi))     # 3.141592653589793
-print(float(sqrt2))  # 1.4142135623730951
+print(x)                # 3/4
+print(y)                # 5/4
+print(x + y)            # 2
+print(float(pi))        # 3.141592653589793
+print(float(sqrt2))     # 1.4142135623730951
+print(pi.current_bound())
 ```
 
-### 自訂可計算實數
+## 可計算實數不是小數字串
+
+`ComputableReal` **不會**儲存十進位數字。
+它儲存的是一個 sign oracle，用來回答下面這個問題：
+
+> 對於某個有理查詢值 `q`，`q` 是小於、等於，還是大於目標實數 `x`？
+
+其符號慣例為：
+
+- `-1`：查詢有理數 `<` 真值
+- `0`：查詢有理數 `==` 真值
+- `1`：查詢有理數 `>` 真值
+
+這表示 `ComputableReal` 的本質是**可比較、可逐步逼近的實數**，而不是「先算好很多位數的小數展開」。
+
+## 定義你自己的可計算實數
 
 ```python
 from Computable_current import ComputableReal as R
@@ -178,134 +128,185 @@ sqrt2 = R(
     right=2,
 )
 
+print(sqrt2.current_bound())
 print(float(sqrt2))
 ```
+
+對 `sqrt(2)` 這種無理值而言，sign function 不需要回傳 `0`。
+若某個值可能其實是有理數，則在適當時刻回傳 `0`，物件就可以收斂成精確有理表示。
+
+## 區間與 refinement
+
+`ComputableReal` 會持續攜帶區間資訊。
+你可以查看目前已知範圍，也可以只在需要時要求更細的 refinement。
+
+```python
+from Computable_current import ComputableRational as Q, ComputableReal as R
+
+x = R.PI
+
+print(x.current_bound())
+print(x.current_width())
+
+x.refine_to_width(Q(1, 10_000))
+print(x.current_bound())
+print(x.current_width())
+```
+
+這正是這個模組的核心模型：
+精度是**按需求傳播**的，而不是一開始就全域固定。
+
+## 分母受限的有理近似
+
+這個模組其中一個非常實用的操作，是在分母預算受限時取得有理近似。
+
+```python
+from Computable_current import ComputableReal as R
+
+left, right = R.PI.rational_bound(100)
+print(left, right)
+```
+
+這會回傳一組保證夾住真值、且分母不超過 `100` 的有理區間。
+在很多情況下，這比單純要求「小數點後 10 位」更有意義，尤其是當你在乎後續仍要做精確運算時。
+
+## `ComputableRational` 的 mutable / frozen 生命週期
+
+`ComputableRational` 不只是 immutable `Fraction` 的複製品。
+它支援兩種實用的執行時模式：
+
+- **mutable**：適合大量中間運算
+- **frozen / canonical**：適合共享、hash 與快取
+
+典型用法如下：
+
+```python
+from Computable_current import ComputableRational as Q
+
+x = Q(1, 3).__copy__()   # mutable 工作副本
+x += Q(1, 6)
+result = x.intern()      # freeze + canonicalize
+
+print(result)            # 1/2
+```
+
+這樣的設計讓模組在維持精確語意的同時，也避免在內層迴圈中做過多不必要的 canonicalization。
+
+## 根尋找
+
+你可以從一個連續函數，以及一個端點異號的有限有理區間，建立可計算實數根。
+
+```python
+from Computable_current import ComputableRational as Q, ComputableReal as R
+
+root = R.root_finding(
+    lambda n, d: Q(n, d) * Q(n, d) - 2,
+    (1, 2),
+)
+
+print(root.current_bound())
+print(float(root))
+```
+
+傳給 `root_finding()` 的 callback 會收到兩個整數 `(numerator, denominator)`，並應回傳某種 real-like 的值。
+
+## 輸出與近似 API
+
+### 有理值
+
+當值是精確的，而且你希望它保持精確時，請使用 `ComputableRational`。
+
+```python
+from Computable_current import ComputableRational as Q
+
+x = Q("3.125")
+print(x.as_integer_ratio())
+print(x.to_scientific_notation())
+print(x.float_bound())
+```
+
+### 實數值
+
+當值可能是無理數，或你希望近似過程保持顯式時，請使用 `ComputableReal`。
+
+```python
+from Computable_current import ComputableReal as R
+
+x = R.E
+print(x.current_bound())
+print(x.rational_bound(50))
+print(x.float_bound())
+print(float(x))
+```
+
+若你在乎正確性，應優先使用 `current_bound()`、`rational_bound()` 或 `float_bound()`，而不是把 `float(x)` 當成完整真相。
 
 ## 心智模型
 
 ### `ComputableRational`
 
-**把它想成：**
+可以把它想成：
 
-- 精確值容器
-- 可 canonicalize 的快取節點
-- 中間運算時可暫時保持 mutable 的 fraction engine
-
-**使用建議：**
-
-- 大量迴圈更新前，用 `__copy__()` 取得 mutable 副本
-- 完成後用 `intern()` 收斂成 canonical frozen 值
-- 要放進 `dict` / `set` 前，先 `intern()`
+- 一個精確值容器
+- 一個 canonical cache 節點
+- 一個適合中間運算的 mutable fraction engine
 
 ### `ComputableReal`
 
-**把它想成：**
+可以把它想成：
 
-- 一個知道如何回答「`q` 跟我相比在哪邊」的實數物件
-- 一個會隨查詢而累積更多界資訊的 stateful oracle
+- 一個知道如何回答「有理數 `q` 跟我相比在哪裡」的實數
+- 一個會隨著查詢累積資訊的 stateful oracle
 - 一個位於隱式計算圖上的節點
 
-**常見建議：**
+對 `ComputableReal` 做四則運算時，系統不會立刻把它壓成 float。
+相反地，它會建立新的 `ComputableReal`，其 sign function 會閉包引用上游運算元。
+實務上，這會形成一張隱式 DAG；當下游節點需要更高精度時，refinement 可以沿著依賴關係向上游傳播。
 
-- 先用 `current_bound()` 看目前已知範圍
-- 需要更細近似時，再呼叫 `refine_to_width()`
-- 需要受限分母表示時，用 `rational_bound(max_denominator)`
-- 不要把 `float(x)` 當成唯一真相；若你在乎保證，應搭配 `float_bound()` 或有理區間 API
+## 這個專案不是什麼
 
-## 精度與表示
+這個模組**不是**：
 
-### `ComputableRational` 的輸出 API
+- 一般意義上的 arbitrary-precision decimal package
+- 以固定小數位數為中心的高精度浮點包裝器
+- symbolic CAS
 
-| API | 用途 |
-| --- | --- |
-| `as_integer_ratio()` | 取得精確分子分母 |
-| `to_scientific_notation()` | 輸出科學記號字串 |
-| `float_bound()` | 取得保證包含真值的浮點區間 |
+更準確地說，它是一個整合了下列能力的數值核心：
 
-### `ComputableReal` 的輸出 API
-
-| API | 用途 |
-| --- | --- |
-| `current_bound()` | 取得目前已知的有理區間 |
-| `refine_to_width(epsilon)` | 把區間縮到指定寬度 |
-| `rational_bound(max_denominator)` | 取得受限分母的夾擠近似 |
-| `float_bound()` | 取得區間安全的浮點表示 |
-| `float(x)` | 根據目前可得資訊選出的浮點近似 |
-
-## 內建常數
-
-| 常數 | 說明 |
-| --- | --- |
-| `ComputableReal.PI` | 圓周率的 `ComputableReal` 表示 |
-| `ComputableReal.E` | 自然常數的 `ComputableReal` 表示 |
-
-這兩個常數不是硬編碼的小數，而是以級數驅動的比較機制建立出的 `ComputableReal` 物件。
-
-## 根尋找
-
-`ComputableReal.root_finding(func, interval)` 可以根據連續函數與異號區間建立一個根。
-
-**這個 API 適合：**
-
-- 已知區間內有唯一根
-- 想把根納入同一套 `ComputableReal` 表示系統
-- 想讓後續比較、逼近、與有理近似沿用同一套機制
+- 精確有理數
+- 可計算實數
+- 區間保證
+- 需求驅動 refinement
 
 ## 雜湊與快取
 
 ### `ComputableRational`
 
-- canonical frozen 值會進入全域快取
-- `__hash__()` 會促使 mutable 物件凍結
-- 相等值可共享同一個 frozen 物件
+- canonical frozen rationals 會進入全域快取
+- 對 mutable rational 做 hash 會使其凍結
+- 相等的有理值可以共享同一個 canonical 物件
 
 ### `ComputableReal`
 
-- 第一次 hash 前必須先設定 `ComputableReal.set_max_denominator_for_hash`
-- 這個值只能設定一次
-- 目的是讓小分母有理值的 hash 儘量與 `ComputableRational` 相容
-
-## 目前功能範圍
-
-### `ComputableRational`
-
-- 精確四則運算
-- 整數商餘
-- 有理次方
-- 有理對數
-- 分母受限近似
-- 精確／近似格式輸出
-
-### `ComputableReal`
-
-- 由有理數、sign function、內建常數建立
-- 四則運算
-- 比較與相等判定
-- 結構化 refinement
-- 有理與浮點近似輸出
-- 根尋找
-
-## 需求
-
-- **Python 3.14+**
-- 不需第三方套件，僅依賴標準函式庫
-
-## 匯入方式
+在對 `ComputableReal` 做 hash 之前，必須先設定：
 
 ```python
-from Computable_current import ComputableRational, ComputableReal
+from Computable_current import ComputableReal as R
+
+R.set_max_denominator_for_hash = 100
 ```
 
-或
+這個設定只能指定一次。
+它決定了系統在計算 hash 時，為了盡量與小分母有理值相容，所採用的分母預算。
 
-```python
-from Computable_current import ComputableRational as Q, ComputableReal as R
-```
+## 內建常數
+
+- `ComputableReal.PI`
+- `ComputableReal.E`
+
+它們不是硬編碼的小數字串，
+而是由比較程序驅動的可計算實數物件。
 
 ## 一句話總結
 
-這個模組的核心不是「把數字算成很多位小數」，而是：
-
-> 用精確有理數作為基底，
-> 用有理數比較 oracle 定義可計算實數，
-> 用區間與需求驅動 refinement 管理近似。
+`Computable_current.py` 是一個單檔 Python 模組，用來處理**精確有理數**與**以 oracle 定義的可計算實數**；而且**區間保證**與**需求驅動 refinement**本身就是表示法的一部分。
