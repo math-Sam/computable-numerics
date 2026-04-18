@@ -756,6 +756,8 @@ class ComputableNumber(metaclass=ComputableType):
             property_setter('_is_simplified',is_simple)
             if is_simple:
                 property_setter('_hash',self._hash)
+            else:
+                property_setter('_hash',None)
             property_setter('_is_frozen',False)
             return instance
         @classmethod
@@ -829,7 +831,6 @@ class ComputableNumber(metaclass=ComputableType):
                 property_setter('numerator',numerator)
                 property_setter('denominator',denominator)
             property_setter('_is_simplified',True)
-            property_setter('_hash',None)
         def as_integer_ratio(self)->IntegerRatio:
             self.simplify()
             return (self.numerator,self.denominator)
