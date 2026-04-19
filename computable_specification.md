@@ -20,7 +20,7 @@
 因此：
 
 - `ComputableRational` 的 mutation 是**值本身的變化**；
-- `ComputableReal` 的 mutation 多半是**對同一真值累積更多資訊**。
+- `ComputableReal` 的 mutation 是**對同一真值累積更多資訊**。
 
 ---
 
@@ -29,7 +29,7 @@
 ### 2.1 `RationalNumber`
 
 - `numerator`, `denominator`：內部分子分母表示。
-- `_is_simplified`：是否已達本系統承認的正規表示。
+- `_is_simplified`：是否已達本系統承認的正規最簡有理數表示。
 - `_hash`：已計算出的雜湊值；若為 `None`，表示尚未進入穩定 hash 狀態。
 - `_is_frozen`：是否凍結；凍結後不得原地修改。
 
