@@ -752,12 +752,8 @@ class ComputableNumber(metaclass=ComputableType):
             property_setter=super(cls,instance).__setattr__
             property_setter('numerator',self.numerator)
             property_setter('denominator',self.denominator)
-            is_simple=self._is_simplified
-            property_setter('_is_simplified',is_simple)
-            if is_simple:
-                property_setter('_hash',self._hash)
-            else:
-                property_setter('_hash',None)
+            property_setter('_is_simplified',self._is_simplified)
+            property_setter('_hash',self._hash)
             property_setter('_is_frozen',False)
             return instance
         @classmethod
@@ -2164,23 +2160,46 @@ class ComputableNumber(metaclass=ComputableType):
             numerator_right_query,denominator_right_query=right_query.numerator,right_query.denominator
             denominator_mid=denominator_left+denominator_right
             numerator_mid=numerator_left+numerator_right
-            while True:
-                if numerator_mid*denominator_left_query<=denominator_mid*numerator_left_query:
-                    left_error=denominator_left*numerator_left_query-numerator_left*denominator_left_query
-                    right_error=numerator_right*denominator_left_query-denominator_right*numerator_left_query
-                    k=left_error//right_error
-                    denominator_left+=k*denominator_right
-                    numerator_left+=k*numerator_right
-                elif numerator_mid*denominator_right_query>=denominator_mid*numerator_right_query:
-                    left_error=denominator_left*numerator_right_query-numerator_left*denominator_right_query
-                    right_error=numerator_right*denominator_right_query-denominator_right*numerator_right_query
-                    k=right_error//left_error
-                    denominator_right+=k*denominator_left
-                    numerator_right+=k*numerator_left
-                else:
-                    break
+            def push_left():
+                nonlocal numerator_left,denominator_left,numerator_mid,denominator_mid
+                left_error=denominator_left*numerator_left_query-numerator_left*denominator_left_query
+                right_error=numerator_right*denominator_left_query-denominator_right*numerator_left_query
+                k=left_error//right_error
+                denominator_left+=k*denominator_right
+                numerator_left+=k*numerator_right
                 denominator_mid=denominator_left+denominator_right
                 numerator_mid=numerator_left+numerator_right
+            def push_right():
+                nonlocal numerator_right,denominator_right,numerator_mid,denominator_mid
+                left_error=denominator_left*numerator_right_query-numerator_left*denominator_right_query
+                right_error=numerator_right*denominator_right_query-denominator_right*numerator_right_query
+                k=right_error//left_error
+                denominator_right+=k*denominator_left
+                numerator_right+=k*numerator_left
+                denominator_mid=denominator_left+denominator_right
+                numerator_mid=numerator_left+numerator_right
+            if numerator_mid*denominator_left_query<=denominator_mid*numerator_left_query:
+                push_left()
+                while True:
+                    if numerator_mid*denominator_right_query>=denominator_mid*numerator_right_query:
+                        push_right()
+                    else:
+                        break
+                    if numerator_mid*denominator_left_query<=denominator_mid*numerator_left_query:
+                        push_left()
+                    else:
+                        break
+            elif numerator_mid*denominator_right_query>=denominator_mid*numerator_right_query:
+                push_right()
+                while True:
+                    if numerator_mid*denominator_left_query<=denominator_mid*numerator_left_query:
+                        push_left()
+                    else:
+                        break
+                    if numerator_mid*denominator_right_query>=denominator_mid*numerator_right_query:
+                        push_right()
+                    else:
+                        break
             constructor=type(self)._Rational._new_for_simple
             if denominator_left!=left_rational.denominator:
                 self._left_rational=constructor(numerator_left,denominator_left)
@@ -4915,5 +4934,4 @@ class ComputableNumber(metaclass=ComputableType):
 
 ComputableRational=ComputableNumber.RationalNumber
 ComputableReal=ComputableNumber.RealNumber
-
 
