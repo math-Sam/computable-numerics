@@ -2206,6 +2206,43 @@ class ComputableNumber(metaclass=ComputableType):
             if denominator_right!=right_rational.denominator:
                 self._right_rational=constructor(numerator_right,denominator_right)
             self._is_regular=True
+        def _synchronize(self)->None:
+            self._regularize()
+            left_query,right_query=self._nearest_left,self._nearest_right
+            left_rational,right_rational=self._left_rational,self._right_rational
+            left_is_equal=(left_query==left_rational)
+            right_is_equal=(right_query==right_rational)
+            if left_is_equal and right_is_equal:
+                return
+            numerator_left,denominator_left=left_rational.numerator,left_rational.denominator
+            numerator_right,denominator_right=right_rational.numerator,right_rational.denominator
+            numerator_mid,denominator_mid=numerator_left+numerator_right,denominator_left+denominator_right
+            compare_result=self._init_sign_func(numerator_mid,denominator_mid,input_is_regular=True)
+            def update_left():
+                nonlocal numerator_left,denominator_left,numerator_mid,denominator_mid,compare_result
+                numerator_left,denominator_left=numerator_mid,denominator_mid
+                numerator_mid,denominator_mid=numerator_left+numerator_right,denominator_left+denominator_right
+                compare_result=self._init_sign_func(numerator_mid,denominator_mid,input_is_regular=True)
+            def update_right():
+                nonlocal numerator_right,denominator_right,numerator_mid,denominator_mid,compare_result
+                numerator_right,denominator_right=numerator_mid,denominator_mid
+                numerator_mid,denominator_mid=numerator_left+numerator_right,denominator_left+denominator_right
+                compare_result=self._init_sign_func(numerator_mid,denominator_mid,input_is_regular=True)
+            if left_is_equal:
+                while compare_result==-1:
+                    update_left()
+            elif right_is_equal:
+                while compare_result==1:
+                    update_right()
+            else:
+                if compare_result==-1:
+                    update_left()
+                    while compare_result==-1:
+                        update_left()
+                elif compare_result==1:
+                    update_right()
+                    while compare_result==1:
+                        update_right()
         def _find_rational_for_regular(self)->None:
             left_rational=self._left_rational
             right_rational=self._right_rational
@@ -2815,6 +2852,9 @@ class ComputableNumber(metaclass=ComputableType):
         def __hash__(self):
             if self._hash is not None:
                 return self._hash
+            if not self._is_possible_irrational:
+                self._hash=hash(self._exact_rational)
+                return self._hash
             cls=type(self)
             max_denominator=cls.set_max_denominator_for_hash
             if max_denominator is None:
@@ -2827,19 +2867,15 @@ class ComputableNumber(metaclass=ComputableType):
             numerator_mid=left.numerator*denominator_right+right.numerator*denominator_left
             denominator_mid=2*denominator_left*denominator_right
             compare_result=self._init_sign_func(numerator_mid,denominator_mid)
+            if self._is_possible_rational and self._is_possible_irrational:
+                raise TypeError("'undecided' object is unhashable")
             if compare_result==1:
                 self._hash=hash(left)
                 return self._hash
             if compare_result==-1:
                 self._hash=hash(right)
                 return self._hash
-            if denominator_left<denominator_right:
-                self._hash=hash(left)
-                return self._hash
-            if denominator_left>denominator_right:
-                self._hash=hash(right)
-                return self._hash
-            self._hash=(hash(right) if left.numerator&1 else hash(left))
+            self._hash=hash(self._exact_rational)
             return self._hash
         def __neg__(self):
             cls=type(self)
@@ -4930,8 +4966,99 @@ class ComputableNumber(metaclass=ComputableType):
                 return cls(compare_func,is_possible_rational=True,is_possible_irrational=True,left=init_left,right=init_right)
             else:
                 return cls(value_sign_func,is_possible_rational=True,is_possible_irrational=True,left=init_left,right=init_right)
+        def _inverse_for_strictly_increasing_function(self,func:Callable[[int,int],RealLike],left:RationalLike=None,right:RationalLike=None)->Self:
+            '''
+            1. The real number is in the image of the input function on the input rational interval.
+            2. The input function is strictly increasing on the input rational interval.
+            3. When one of the input endpoints is None, it is assumed that left/right endpoint is negative/positive infinity.
+            '''
+            cls=type(self)
+            Rationalclass=cls._Rational
+            analyzer=Rationalclass._analyze_input_for_one_argument
+            def new_sign_func(numerator:int,denominator:int)->CompareResult:
+                value=func(numerator,denominator)
+                try:
+                    numerator_value,denominator_value,_=analyzer(value)
+                    if denominator_value==0 and numerator_value==0:
+                        raise ValueError('The function output cannot be \'Not a Number\'')
+                    return self._sign_func(numerator_value,denominator_value)
+                except TypeError:
+                    if isinstance(value,cls._family_root):
+                        return self.compare(value)
+                    else:
+                        return self.compare(cls(value))
+            return cls(new_sign_func,is_possible_rational=True,is_possible_irrational=True,left=left,right=right)
+        def _strictly_increasing_function(self,func:Callable[[int,int],RealLike])->Self:
+            '''
+            The input function is strictly increasing on the dynamic query interval of the real number.
+            '''
+            cls=type(self)
+            if not self._is_possible_irrational:
+                value=func(self._exact_rational.numerator,self._exact_rational.denominator)
+                return cls(value)
+            left_query,right_query=self.current_bound()
+            left_value=cls(func(left_query.numerator,left_query.denominator))
+            right_value=cls(func(right_query.numerator,right_query.denominator))
+            if left_value>=right_value:
+                raise ValueError('The input function is not strictly increasing on the dynamic query interval of the real number')
+            left_rational=left_value._nearest_left
+            right_rational=right_value._nearest_right
+            def new_sign_func(numerator:int,denominator:int)->CompareResult:
+                input_value=cls((numerator,denominator))
+                inverse_value=input_value._inverse_for_strictly_increasing_function(func,left=left_query,right=right_query)
+                return self.compare(inverse_value)
+            mid_rational=(left_rational+right_rational)/2
+            while True:
+                if left_value>mid_rational:
+                    left_rational=mid_rational
+                    mid_rational=(left_rational+right_rational)/2
+                elif right_value<mid_rational:
+                    right_rational=mid_rational
+                    mid_rational=(left_rational+right_rational)/2
+                else:
+                    break
+            test_value=mid_rational.intern()
+            compareresult=new_sign_func(test_value.numerator,test_value.denominator)
+            if compareresult==-1:
+                left_rational=test_value
+                mid_rational=(left_rational+right_rational)/2
+                while True:
+                    if right_value<mid_rational:
+                        right_rational=mid_rational
+                        mid_rational=(left_rational+right_rational)/2
+                    else:
+                        compareresult=new_sign_func(mid_rational.numerator,mid_rational.denominator)
+                        if compareresult==-1:
+                            left_rational=mid_rational
+                            mid_rational=(left_rational+right_rational)/2
+                        elif compareresult==1:
+                            right_rational=mid_rational.intern()
+                            break
+                        else:
+                            return cls(mid_rational)
+            elif compareresult==1:
+                right_rational=test_value
+                mid_rational=(left_rational+right_rational)/2
+                while True:
+                    if left_value>mid_rational:
+                        left_rational=mid_rational
+                        mid_rational=(left_rational+right_rational)/2
+                    else:
+                        compareresult=new_sign_func(mid_rational.numerator,mid_rational.denominator)
+                        if compareresult==1:
+                            right_rational=mid_rational
+                            mid_rational=(left_rational+right_rational)/2
+                        elif compareresult==-1:
+                            left_rational=mid_rational.intern()
+                            break
+                        else:
+                            return cls(mid_rational)
+            else:
+                return cls(mid_rational)
+            return cls(new_sign_func,True,True,left=left_rational,right=right_rational)
 
 
 ComputableRational=ComputableNumber.RationalNumber
 ComputableReal=ComputableNumber.RealNumber
+
 

@@ -15,6 +15,10 @@
 - 以區間呈現的誤差保證
 - 以及只在真正需要時才計算的精度
 
+> [!IMPORTANT]
+> 若你打算把 `ComputableReal` / `RealNumber` 放進 `set`、當作 `dict` 的 key，或主動對它呼叫 `hash()`，請先閱讀 **`realnumber_hash_policy.md`**。  
+> `ComputableReal` 的哈希行為**不是**一般整數或分數那種「預設理所當然可哈希」的語意；它依賴額外的分母預算政策與物件狀態解析。
+
 ## 為什麼會有這個專案
 
 多數 Python 數值工具優先考慮的是：
@@ -53,6 +57,11 @@
 - 透過 `rational_bound(max_denominator)` 提供分母受限的有理近似
 - 透過 `float_bound()` 提供區間安全的浮點輸出
 - 可用 `root_finding()` 從連續函數與異號區間建立根
+
+> [!NOTE]
+> `ComputableReal` 的主要設計目標是：**比較、區間保證、逐步 refinement**。  
+> 它不是預設拿來當 `set` 成員或 `dict` key 的值型別。  
+> 若你的使用情境涉及哈希，請直接閱讀 **`realnumber_hash_policy.md`**，不要只依賴本 README 最後的簡短摘要。
 
 ## 需求
 
@@ -95,7 +104,7 @@ print(pi.current_bound())
 
 ## 可計算實數不是小數字串
 
-`ComputableReal` **不會**儲存十進位數字。
+`ComputableReal` **不會**儲存十進位數字。  
 它儲存的是一個 sign oracle，用來回答下面這個問題：
 
 > 對於某個有理查詢值 `q`，`q` 是小於、等於，還是大於目標實數 `x`？
@@ -132,12 +141,12 @@ print(sqrt2.current_bound())
 print(float(sqrt2))
 ```
 
-對 `sqrt(2)` 這種無理值而言，sign function 不需要回傳 `0`。
+對 `sqrt(2)` 這種無理值而言，sign function 不需要回傳 `0`。  
 若某個值可能其實是有理數，則在適當時刻回傳 `0`，物件就可以收斂成精確有理表示。
 
 ## 區間與 refinement
 
-`ComputableReal` 會持續攜帶區間資訊。
+`ComputableReal` 會持續攜帶區間資訊。  
 你可以查看目前已知範圍，也可以只在需要時要求更細的 refinement。
 
 ```python
@@ -153,7 +162,7 @@ print(x.current_bound())
 print(x.current_width())
 ```
 
-這正是這個模組的核心模型：
+這正是這個模組的核心模型：  
 精度是**按需求傳播**的，而不是一開始就全域固定。
 
 ## 分母受限的有理近似
@@ -167,12 +176,12 @@ left, right = R.PI.rational_bound(100)
 print(left, right)
 ```
 
-這會回傳一組保證夾住真值、且分母不超過 `100` 的有理區間。
+這會回傳一組保證夾住真值、且分母不超過 `100` 的有理區間。  
 在很多情況下，這比單純要求「小數點後 10 位」更有意義，尤其是當你在乎後續仍要做精確運算時。
 
 ## `ComputableRational` 的 mutable / frozen 生命週期
 
-`ComputableRational` 不只是 immutable `Fraction` 的複製品。
+`ComputableRational` 不只是 immutable `Fraction` 的複製品。  
 它支援兩種實用的執行時模式：
 
 - **mutable**：適合大量中間運算
@@ -259,8 +268,8 @@ print(float(x))
 - 一個會隨著查詢累積資訊的 stateful oracle
 - 一個位於隱式計算圖上的節點
 
-對 `ComputableReal` 做四則運算時，系統不會立刻把它壓成 float。
-相反地，它會建立新的 `ComputableReal`，其 sign function 會閉包引用上游運算元。
+對 `ComputableReal` 做四則運算時，系統不會立刻把它壓成 float。  
+相反地，它會建立新的 `ComputableReal`，其 sign function 會閉包引用上游運算元。  
 實務上，這會形成一張隱式 DAG；當下游節點需要更高精度時，refinement 可以沿著依賴關係向上游傳播。
 
 ## 這個專案不是什麼
@@ -296,17 +305,26 @@ from Computable_current import ComputableReal as R
 R.set_max_denominator_for_hash = 100
 ```
 
-這個設定只能指定一次。
-它決定了系統在計算 hash 時，為了盡量與小分母有理值相容，所採用的分母預算。
+這個設定只能指定一次。  
+它決定了系統在計算無理數的 hash 時所採用的分母預算。
+
+> [!IMPORTANT]
+> 上面這段只是最小提醒，不是完整哈希政策。  
+> **`ComputableReal` 的 hashability 不是單純「設定一個分母預算就好」**，它還取決於物件當前是否已解析為 `rational-only` 或 `irrational-only`，以及對 `undecided` 狀態要如何處理。  
+> 如果你要把 `ComputableReal` 放進 `set`、作為 `dict` key，或準備在公開 API 中對它做 hash，請務必閱讀 **`realnumber_hash_policy.md`**。
 
 ## 內建常數
 
 - `ComputableReal.PI`
 - `ComputableReal.E`
 
-它們不是硬編碼的小數字串，
+它們不是硬編碼的小數字串，  
 而是由比較程序驅動的可計算實數物件。
 
 ## 一句話總結
 
 `Computable_current.py` 是一個單檔 Python 模組，用來處理**精確有理數**與**以 oracle 定義的可計算實數**；而且**區間保證**與**需求驅動 refinement**本身就是表示法的一部分。
+
+> [!TIP]
+> 若你只把 `ComputableReal` 當作可比較、可逼近、可取區間界的實數物件使用，閱讀本 README 通常就夠了。  
+> 若你要讓 `ComputableReal` 參與 Python 的哈希語意（`hash()`、`set`、`dict` key），請繼續閱讀 **`realnumber_hash_policy.md`**。
