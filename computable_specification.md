@@ -655,14 +655,54 @@
 
 ### `RealNumber.__hash__()`
 
+**設計定位**
+
+`RealNumber` 的 hash 並非 exact mathematical identity 的完整編碼。  
+對已解析為 exact rational 的物件，hash 可直接建立在 exact rational value 上；  
+對非 rational-only 的物件，hash 則必然依賴固定的 denominator budget 與 denominator-bounded representative selection。  
+因此，`RealNumber` 的 hash 應理解為一種**受全域 denominator budget 約束的穩定雜湊語意**，而不是脫離該政策的絕對 canonical hash。
+
+面向使用者的完整說明、限制與使用建議，詳見 `realnumber_hash_policy.md`。
+
+---
+
 **前置條件**
-- 類別屬性 `set_max_denominator_for_hash` 必須先被設定；
-- 且這個設定只能指定一次。
+
+- 若物件已為 rational-only，則可直接雜湊，不需要 `set_max_denominator_for_hash`。
+- 若物件不是 rational-only，則在第一次呼叫 `__hash__()` 之前，類別屬性 `set_max_denominator_for_hash` 必須先被設定為正整數。
+- `set_max_denominator_for_hash` 一旦被設定後，不得再改為不同的值。
+
+---
+
+**狀態相依行為**
+
+1. **rational-only**  
+   若 `_is_possible_irrational == False`，則 hash 定義為 exact rational 的 hash。
+
+2. **irrational-only**  
+   若 `_is_possible_rational == False`，則 hash 定義為固定 denominator budget 下的 representative hash。  
+   其 representative 由 `rational_bound(max_denominator)` 所給出的區間與中點測試共同決定。
+
+3. **undecided**  
+   若物件在呼叫 `__hash__()` 時仍為 undecided，則 `__hash__()` 不會立刻失敗；它會先執行一次 bounded rational discovery，即在目前 `set_max_denominator_for_hash` 下呼叫 `rational_bound(max_denominator)`，並在需要時再做一次中點測試。  
+   - 若因此解析為 rational-only，則回到第 1 類情形；
+   - 若因此解析為 irrational-only，則回到第 2 類情形；
+   - 若執行後物件仍為 undecided，則 `__hash__()` 應拋出 `TypeError`，該物件在目前政策下視為不可哈希。
+
+---
 
 **後置條件**
-- 雜湊會盡量與小分母 rational 的 hash 相容；
-- 內部藉由 `rational_bound(max_denominator)` 與中點比較決定採左界或右界；
+
 - 一旦 `_hash` 被設定，即可重複重用。
+- `RealNumber` 的 number-kind 只會由 undecided 單向解析為 rational-only 或 irrational-only，不會反向退回 undecided；因此物件只會由「目前不可哈希」走向「可哈希」，不會反向退回。
+
+---
+
+**補充說明**
+
+- `RealNumber` 的 hashability 是 **resolution-dependent under current denominator budget**。
+- `RealNumber` 並非預設建議放入 `set` 或作為 `dict` key 的型別；若必須如此使用，應以 `realnumber_hash_policy.md` 的使用者契約為準。
+- `RealNumber` 的 hash 策略具有明顯的全域政策色彩；這是目前系統的語意邊界之一。
 
 ---
 
