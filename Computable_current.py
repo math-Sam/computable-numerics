@@ -2115,7 +2115,7 @@ class ComputableNumber(metaclass=ComputableType):
             return sign_func
         def _rationalized(self,rational:Q)->None:
             if not self._is_possible_rational:
-                raise ValueError('This number is exactly rational.')
+                raise ValueError("This number is exactly rational, contradicting the initialization setting is_possible_rational=False.")
             if self._is_possible_irrational:
                 self._is_possible_irrational=False
             cls=type(self)
@@ -2468,13 +2468,14 @@ class ComputableNumber(metaclass=ComputableType):
                     return type(self)._Rational._new_for_simple(1,self._left_rational.denominator*self._right_rational.denominator)
         def refine_to_width(self,epsilon:RationalLike)->None:
             Rationalclass=type(self)._Rational
-            constructor=Rationalclass._new_for_simple
             analyzer=Rationalclass._analyze_input_for_one_argument
             numerator_epsilon,denominator_epsilon,is_simple=analyzer(epsilon)
             if denominator_epsilon==0:
                 raise ValueError('epsilon must be a finite rational number')
             if numerator_epsilon<=0:
                 raise ValueError('epsilon must be positive')
+            if not self._is_possible_irrational:
+                return
             if not is_simple:
                 numerator_epsilon,denominator_epsilon=Rationalclass._simplify(numerator_epsilon,denominator_epsilon)
             self._regularize()
@@ -2498,8 +2499,10 @@ class ComputableNumber(metaclass=ComputableType):
                     return
                 if denominator_left*denominator_right*numerator_epsilon>=denominator_epsilon:
                     break
+            constructor=Rationalclass._new_for_simple
             self._left_rational=constructor(numerator_left,denominator_left)
             self._right_rational=constructor(numerator_right,denominator_right)
+            self._is_regular=True
         def __bool__(self):
             if self._is_possible_irrational:
                 return True
@@ -2863,7 +2866,7 @@ class ComputableNumber(metaclass=ComputableType):
             cls=type(self)
             max_denominator=cls.set_max_denominator_for_hash
             if max_denominator is None:
-                raise NotImplementedError('set_max_denominator_for_hash must be set before __hash__ is called for the first time.')
+                raise TypeError('set_max_denominator_for_hash must be set before __hash__ is called for a non-rational-only object for the first time.')
             left,right=self.rational_bound(max_denominator)
             if left==right:
                 self._hash=hash(left)
