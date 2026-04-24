@@ -726,6 +726,7 @@ class ComputableNumber(metaclass=ComputableType):
         _hash:int|None
         _is_frozen:bool
         _unwritable_attribute=frozenset({'_is_simplified','_hash','_is_frozen','__weakref__'})
+        _available_attribute=frozenset(__slots__)
         @classmethod
         def _construct_new_object_for_straight(cls,numerator:int,denominator:int)->Self:
             instance=cls.__new__(cls)
@@ -780,6 +781,8 @@ class ComputableNumber(metaclass=ComputableType):
             property_setter('_hash',None)
         def __setattr__(self,name,value):
             cls=type(self)
+            if name not in cls._available_attribute:
+                raise AttributeError(f"{name} is not an attribute for {cls.__name__} object")
             if name in cls._unwritable_attribute:
                 raise AttributeError(f"{name} is a read-only attribute for {cls.__name__} object")
             if self._is_frozen:
@@ -874,6 +877,8 @@ class ComputableNumber(metaclass=ComputableType):
         def safe_setting(self,name:str,value)->Self:
             # When object is frozen, this function return a new object. Please use the form new_object = old_object.safe_setting(name,value).
             cls=type(self)
+            if name not in cls._available_attribute:
+                raise AttributeError(f"{name} is not an attribute for {cls.__name__} object")
             if name in cls._unwritable_attribute:
                 raise AttributeError(f"{name} is a read-only attribute for {cls.__name__} object")
             numerator_v,denominator_v,_=cls._analyze_input_for_one_argument(value)
