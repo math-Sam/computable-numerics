@@ -60,6 +60,7 @@ class ComputableType(type):
                                          '_unreadable_attribute','_unwritable_attribute','_family_root','_container_class','_Real','__weakref__'})
         _undeletable_attribute=frozenset({'ZERO','ONE','infty','minfty','nan','memo_dict','numerator','denominator','_is_simplified','_hash','_is_frozen',
                                           '_unreadable_attribute','_unwritable_attribute','_family_root','_container_class','_Real','__weakref__'})
+        
         @staticmethod
         def _normalize(numerator:int,denominator:int)->tuple[int,int,bool]:
             if denominator==0:
@@ -297,6 +298,7 @@ class ComputableType(type):
     class RealType(type):
         _unwritable_attribute=frozenset({'PI','E','_family_root','_container_class','_Rational'})
         _undeletable_attribute=frozenset({'PI','E','_family_root','_container_class','_Rational','set_max_denominator_for_hash'})
+
         def __setattr__(cls,name,value):
             mcls=type(cls)
             if name in mcls._unwritable_attribute:
@@ -543,42 +545,33 @@ class ComputableType(type):
         shn,shd=simplifyer(shn,shd)
         shnsq=shn*shn
         shnsq,commu=simplifyer(shnsq,compare_multiple_for_pi)
-        pi_module._series_high_numerator_square=shnsq
-        pi_module._series_high_denominator_mul=shd*shd*commu
+        shdmu=shd*shd*commu
         sln,sld=get_next_for_pi()
         sln,sld=simplifyer(sln,sld)
         slnsq=sln*sln
         slnsq,commu=simplifyer(slnsq,compare_multiple_for_pi)
-        pi_module._series_low_numerator_square=slnsq
-        pi_module._series_low_denominator_mul=sld*sld*commu
-        def _update_attribute_for_pi(series_high_numerator_square:int,series_high_denominator_mul:int,
-                                     series_low_numerator_square:int,series_low_denominator_mul:int)->None:
-            series_high_numerator_square,series_high_denominator_mul=simplifyer(series_high_numerator_square,series_high_denominator_mul)
-            series_low_numerator_square,series_low_denominator_mul=simplifyer(series_low_numerator_square,series_low_denominator_mul)
-            pi_module._series_high_numerator_square=series_high_numerator_square
-            pi_module._series_high_denominator_mul=series_high_denominator_mul
-            pi_module._series_low_numerator_square=series_low_numerator_square
-            pi_module._series_low_denominator_mul=series_low_denominator_mul
+        sldmu=sld*sld*commu
         def _sign_func_for_pi(numerator:int,denominator:int)->CompareResult:
+            nonlocal shnsq,shdmu,slnsq,sldmu
             numerator_square,denominator_square=numerator*numerator,denominator*denominator
-            shnsq,shdmu=pi_module._series_high_numerator_square,pi_module._series_high_denominator_mul
             if numerator_square*shnsq<=denominator_square*shdmu:
                 return -1
-            slnsq,sldmu=pi_module._series_low_numerator_square,pi_module._series_low_denominator_mul
             if numerator_square*slnsq>=denominator_square*sldmu:
                 return 1
             while True:
                 shn,shd=get_next_for_pi()
-                shnsq=shn*shn
-                shdmu=shd*shd*compare_multiple_for_pi
+                shnsq_local=shn*shn
+                shdmu_local=shd*shd*compare_multiple_for_pi
                 sln,sld=get_next_for_pi()
-                slnsq=sln*sln
-                sldmu=sld*sld*compare_multiple_for_pi
-                if numerator_square*shnsq<=denominator_square*shdmu:
-                    _update_attribute_for_pi(shnsq,shdmu,slnsq,sldmu)
+                slnsq_local=sln*sln
+                sldmu_local=sld*sld*compare_multiple_for_pi
+                if numerator_square*shnsq_local<=denominator_square*shdmu_local:
+                    shnsq,shdmu=simplifyer(shnsq_local,shdmu_local)
+                    slnsq,sldmu=simplifyer(slnsq_local,sldmu_local)
                     return -1
-                if numerator_square*slnsq>=denominator_square*sldmu:
-                    _update_attribute_for_pi(shnsq,shdmu,slnsq,sldmu)
+                if numerator_square*slnsq_local>=denominator_square*sldmu_local:
+                    shnsq,shdmu=simplifyer(shnsq_local,shdmu_local)
+                    slnsq,sldmu=simplifyer(slnsq_local,sldmu_local)
                     return 1
         pi_module._is_called=False
         pi_module.__init__(3,4,_sign_func_for_pi,False,True)
@@ -600,35 +593,26 @@ class ComputableType(type):
                 S_k_numerator=S_k_numerator*k+n_k
         e_series_generator=_compute_series_generator_for_e()
         get_next_for_e=e_series_generator.__next__
-        e_module._series_generator=e_series_generator
         shn,shd=get_next_for_e()
         shn,shd=simplifyer(shn,shd)
-        e_module._series_high_numerator,e_module._series_high_denominator=shn,shd
         sln,sld=get_next_for_e()
         sln,sld=simplifyer(sln,sld)
-        e_module._series_low_numerator,e_module._series_low_denominator=sln,sld
-        def _update_attribute_for_e(series_high_numerator:int,series_high_denominator:int,series_low_numerator:int,series_low_denominator:int)->None:
-            series_high_numerator,series_high_denominator=simplifyer(series_high_numerator,series_high_denominator)
-            series_low_numerator,series_low_denominator=simplifyer(series_low_numerator,series_low_denominator)
-            e_module._series_high_numerator=series_high_numerator
-            e_module._series_high_denominator=series_high_denominator
-            e_module._series_low_numerator=series_low_numerator
-            e_module._series_low_denominator=series_low_denominator
         def _sign_func_for_e(numerator:int,denominator:int)->CompareResult:
-            shn,shd=e_module._series_high_numerator,e_module._series_high_denominator
+            nonlocal shn,shd,sln,sld
             if numerator*shn<=denominator*shd:
                 return -1
-            sln,sld=e_module._series_low_numerator,e_module._series_low_denominator
             if numerator*sln>=denominator*sld:
                 return 1
             while True:
-                shn,shd=get_next_for_e()
-                sln,sld=get_next_for_e()
-                if numerator*shn<=denominator*shd:
-                    _update_attribute_for_e(shn,shd,sln,sld)
+                shn_local,shd_local=get_next_for_e()
+                sln_local,sld_local=get_next_for_e()
+                if numerator*shn_local<=denominator*shd_local:
+                    shn,shd=simplifyer(shn_local,shd_local)
+                    sln,sld=simplifyer(sln_local,sld_local)
                     return -1
-                if numerator*sln>=denominator*sld:
-                    _update_attribute_for_e(shn,shd,sln,sld)
+                if numerator*sln_local>=denominator*sld_local:
+                    shn,shd=simplifyer(shn_local,shd_local)
+                    sln,sld=simplifyer(sln_local,sld_local)
                     return 1
         e_module._is_called=False
         e_module.__init__(2,3,_sign_func_for_e,False,True)
@@ -719,14 +703,17 @@ class ComputableNumber(metaclass=ComputableType):
         infty:ClassVar[Self]
         _family_root:ClassVar[Rational]
         _container_class:ClassVar["ComputableNumber"]
+
         __slots__=('numerator','denominator','_is_simplified','_hash','_is_frozen','__weakref__')
+        _available_attribute=frozenset(__slots__)
+        _unwritable_attribute=frozenset({'_is_simplified','_hash','_is_frozen','__weakref__'})
+
         numerator:int
         denominator:int
         _is_simplified:bool
         _hash:int|None
         _is_frozen:bool
-        _unwritable_attribute=frozenset({'_is_simplified','_hash','_is_frozen','__weakref__'})
-        _available_attribute=frozenset(__slots__)
+
         @classmethod
         def _construct_new_object_for_straight(cls,numerator:int,denominator:int)->Self:
             instance=cls.__new__(cls)
@@ -830,36 +817,6 @@ class ComputableNumber(metaclass=ComputableType):
                 property_setter('numerator',numerator)
                 property_setter('denominator',denominator)
             property_setter('_is_simplified',True)
-        def as_integer_ratio(self)->IntegerRatio:
-            self.simplify()
-            return (self.numerator,self.denominator)
-        def to_scientific_notation(self,precision:int=17)->str:
-            if precision<0:
-                raise ValueError('precision must be non-negative')
-            numerator,denominator=self.as_integer_ratio()
-            if denominator==0:
-                return str(self)
-            if numerator==0:
-                return '0e+0'
-            sign,numerator=(('-',-numerator) if numerator<0 else ('',numerator))
-            numerator_len=len(str(numerator))
-            denominator_len=len(str(denominator))
-            exponent=numerator_len-denominator_len
-            if exponent>0:
-                denominator*=10**exponent
-            elif exponent<0:
-                numerator*=10**(-exponent)
-            if numerator<denominator:
-                numerator*=10
-                exponent-=1
-            exponent_str=('+'+str(exponent) if exponent>=0 else str(exponent))
-            quotient,remainder=divmod(numerator*(10**precision),denominator)
-            quotient_str=str(quotient)
-            if remainder==0:
-                quotient_str=quotient_str.rstrip("0")
-            if len(quotient_str)>1:
-                quotient_str=quotient_str[0]+'.'+quotient_str[1:]
-            return f'{sign}{quotient_str}e{exponent_str}'
         def intern(self)->Self:
             key_tuple=self.as_integer_ratio()
             cls=type(self)
@@ -896,31 +853,7 @@ class ComputableNumber(metaclass=ComputableType):
             else:
                 self._inplace_div(self.numerator,1,numerator_v,denominator_v)
             return self
-        def __hash__(self):
-            if self._is_frozen:
-                return self._hash
-            cls=type(self)
-            numerator,denominator=self.as_integer_ratio()
-            property_setter=super().__setattr__
-            _memo_dict=cls.__dict__['memo_dict'].value
-            key=(numerator,denominator)
-            cached=_memo_dict.get(key)
-            if cached is None:
-                if self._hash is None:
-                    hash_value=cls._compute_hash(numerator,denominator)
-                    property_setter('_hash',hash_value)
-                else:
-                    hash_value=self._hash
-                property_setter('_is_frozen',True)
-                _memo_dict[key]=self
-            else:
-                if self._hash is None:
-                    hash_value=cached._hash
-                    property_setter('_hash',hash_value)
-                else:
-                    hash_value=self._hash
-                property_setter('_is_frozen',True)
-            return hash_value
+        
         def __repr__(self):
             cls=type(self)
             cls_name=cls.__name__
@@ -976,6 +909,30 @@ class ComputableNumber(metaclass=ComputableType):
             self_numerator=self.numerator
             self_denominator=self.denominator
             return (self_numerator//self_denominator,-(-self_numerator//self_denominator))
+        def as_integer_ratio(self)->IntegerRatio:
+            self.simplify()
+            return (self.numerator,self.denominator)
+        def float_bound(self)->tuple[float,float]:
+            cls=type(self)
+            if self.denominator==0:
+                if self.numerator>0:
+                    return float('inf'),float('inf')
+                if self.numerator<0:
+                    return float('-inf'),float('-inf')
+                return float('nan'),float('nan')
+            MAX_FLOAT=sys.float_info.max
+            try:
+                round_float=self.numerator/self.denominator
+            except OverflowError:
+                if self.numerator>0:
+                    return MAX_FLOAT,float('inf')
+                return float('-inf'),-MAX_FLOAT
+            round_rational=cls.convert_from_float(round_float)
+            if round_rational<self:
+                return round_float,math.nextafter(round_float,float('inf'))
+            if round_rational>self:
+                return math.nextafter(round_float,float('-inf')),round_float
+            return round_float,round_float
         def __float__(self):
             if self.denominator==0:
                 if self.numerator==0:
@@ -987,224 +944,67 @@ class ComputableNumber(metaclass=ComputableType):
                 return self.numerator/self.denominator
             except OverflowError:
                 return (float('-inf') if self.numerator<0 else float('inf'))
+        def to_scientific_notation(self,precision:int=17)->str:
+            if precision<0:
+                raise ValueError('precision must be non-negative')
+            numerator,denominator=self.as_integer_ratio()
+            if denominator==0:
+                return str(self)
+            if numerator==0:
+                return '0e+0'
+            sign,numerator=(('-',-numerator) if numerator<0 else ('',numerator))
+            numerator_len=len(str(numerator))
+            denominator_len=len(str(denominator))
+            exponent=numerator_len-denominator_len
+            if exponent>0:
+                denominator*=10**exponent
+            elif exponent<0:
+                numerator*=10**(-exponent)
+            if numerator<denominator:
+                numerator*=10
+                exponent-=1
+            exponent_str=('+'+str(exponent) if exponent>=0 else str(exponent))
+            quotient,remainder=divmod(numerator*(10**precision),denominator)
+            quotient_str=str(quotient)
+            if remainder==0:
+                quotient_str=quotient_str.rstrip("0")
+            if len(quotient_str)>1:
+                quotient_str=quotient_str[0]+'.'+quotient_str[1:]
+            return f'{sign}{quotient_str}e{exponent_str}'
         def __complex__(self): return complex(float(self),0)
+        def __bool__(self):
+            return self.numerator!=0 or self.denominator==0
+        def __hash__(self):
+            if self._is_frozen:
+                return self._hash
+            cls=type(self)
+            numerator,denominator=self.as_integer_ratio()
+            property_setter=super().__setattr__
+            _memo_dict=cls.__dict__['memo_dict'].value
+            key=(numerator,denominator)
+            cached=_memo_dict.get(key)
+            if cached is None:
+                if self._hash is None:
+                    hash_value=cls._compute_hash(numerator,denominator)
+                    property_setter('_hash',hash_value)
+                else:
+                    hash_value=self._hash
+                property_setter('_is_frozen',True)
+                _memo_dict[key]=self
+            else:
+                if self._hash is None:
+                    hash_value=cached._hash
+                    property_setter('_hash',hash_value)
+                else:
+                    hash_value=self._hash
+                property_setter('_is_frozen',True)
+            return hash_value
+        
         def __neg__(self):
             if self._is_simplified:
                 return type(self)._construct_new_object_for_simple(-self.numerator,self.denominator)
             return type(self)._construct_new_object_for_straight(-self.numerator,self.denominator)
         def __pos__(self): return self.__copy__()
-        def __add__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            numerator,denominator,is_special=cls._special_sub(self.numerator,self.denominator,-numerator_right,denominator_right)
-            if is_special:
-                return cls._construct_new_object_for_simple(numerator,denominator)
-            return cls._construct_new_object_for_straight(numerator,denominator)
-        def __radd__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try: 
-                numerator_left,denominator_left,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            numerator,denominator,is_special=cls._special_sub(numerator_left,denominator_left,-self.numerator,self.denominator)
-            if is_special:
-                return cls._construct_new_object_for_simple(numerator,denominator)
-            return cls._construct_new_object_for_straight(numerator,denominator)
-        def __iadd__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            numerator,denominator,is_special=cls._special_sub(self.numerator,self.denominator,-numerator_right,denominator_right)
-            return self._inplace_return(numerator,denominator,is_special)
-        def __sub__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            numerator,denominator,is_special=cls._special_sub(self.numerator,self.denominator,numerator_right,denominator_right)
-            if is_special:
-                return cls._construct_new_object_for_simple(numerator,denominator)
-            return cls._construct_new_object_for_straight(numerator,denominator)
-        def __rsub__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_left,denominator_left,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            numerator,denominator,is_special=cls._special_sub(numerator_left,denominator_left,self.numerator,self.denominator)
-            if is_special:
-                return cls._construct_new_object_for_simple(numerator,denominator)
-            return cls._construct_new_object_for_straight(numerator,denominator)
-        def __isub__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            numerator,denominator,is_special=cls._special_sub(self.numerator,self.denominator,numerator_right,denominator_right)
-            return self._inplace_return(numerator,denominator,is_special)
-        def __mul__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_down,denominator_down,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            if numerator_down>=0:
-                numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,denominator_down,numerator_down)
-            else:
-                numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,denominator_down,-numerator_down)
-                numerator=-numerator
-            if is_special:
-                return cls._construct_new_object_for_simple(numerator,denominator)
-            return cls._construct_new_object_for_straight(numerator,denominator)
-        def __rmul__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_up,denominator_up,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            if self.numerator>=0:
-                numerator,denominator,is_special=cls._special_div(numerator_up,denominator_up,self.denominator,self.numerator)
-            else:
-                numerator,denominator,is_special=cls._special_div(numerator_up,denominator_up,self.denominator,-self.numerator)
-                numerator=-numerator
-            if is_special:
-                return cls._construct_new_object_for_simple(numerator,denominator)
-            return cls._construct_new_object_for_straight(numerator,denominator)
-        def __imul__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_down,denominator_down,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            if numerator_down>=0:
-                numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,denominator_down,numerator_down)
-            else:
-                numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,denominator_down,-numerator_down)
-                numerator=-numerator
-            return self._inplace_return(numerator,denominator,is_special)
-        def __truediv__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_down,denominator_down,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,numerator_down,denominator_down)
-            if is_special:
-                return cls._construct_new_object_for_simple(numerator,denominator)
-            return cls._construct_new_object_for_straight(numerator,denominator)
-        def __rtruediv__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_up,denominator_up,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            numerator,denominator,is_special=cls._special_div(numerator_up,denominator_up,self.numerator,self.denominator)
-            if is_special:
-                return cls._construct_new_object_for_simple(numerator,denominator)
-            return cls._construct_new_object_for_straight(numerator,denominator)
-        def __itruediv__(self,other:RationalLike)->Self|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_down,denominator_down,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,numerator_down,denominator_down)
-            return self._inplace_return(numerator,denominator,is_special)
-        def __eq__(self,other:RationalLike)->bool|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            if self.denominator==0:
-                if self.numerator==0:
-                    return False
-                if self.numerator>0:
-                    if denominator_right==0 and numerator_right<=0:
-                        return False
-                elif denominator_right==0 and numerator_right>=0:
-                    return False
-            elif denominator_right==0:
-                return False
-            return self.numerator*denominator_right==self.denominator*numerator_right
-        def __ne__(self,other:RationalLike)->bool|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            if self.denominator==0:
-                if self.numerator==0:
-                    return True
-                if self.numerator>0:
-                    if denominator_right==0 and numerator_right<=0:
-                        return True
-                elif denominator_right==0 and numerator_right>=0:
-                    return True
-            elif denominator_right==0:
-                return True
-            return self.numerator*denominator_right!=self.denominator*numerator_right
-        def __lt__(self,other:RationalLike)->bool|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            if self.denominator==0 and denominator_right==0 and self.numerator<0 and numerator_right>0:
-                return True
-            return self.numerator*denominator_right<self.denominator*numerator_right
-        def __le__(self,other:RationalLike)->bool|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            if self.denominator==0:
-                if self.numerator==0:
-                    return False
-                if denominator_right==0:
-                    if self.numerator>0 and numerator_right<0:
-                        return False
-                    if numerator_right==0:
-                        return False
-            elif denominator_right==0 and numerator_right==0:
-                return False
-            return self.numerator*denominator_right<=self.denominator*numerator_right
-        def __gt__(self,other:RationalLike)->bool|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            if self.denominator==0 and denominator_right==0 and self.numerator>0 and numerator_right<0:
-                return True
-            return self.numerator*denominator_right>self.denominator*numerator_right
-        def __ge__(self,other:RationalLike)->bool|NotImplementedType:
-            cls=type(self)
-            try:
-                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
-            except TypeError:
-                return NotImplemented
-            if self.denominator==0:
-                if self.numerator==0:
-                    return False
-                if denominator_right==0:
-                    if self.numerator<0 and numerator_right>0:
-                        return False
-                    if numerator_right==0:
-                        return False
-            elif denominator_right==0 and numerator_right==0:
-                return False
-            return self.numerator*denominator_right>=self.denominator*numerator_right
-        def __bool__(self):
-            return self.numerator!=0 or self.denominator==0
         def __abs__(self):
             if self.numerator>=0:
                 return self.__copy__()
@@ -1337,6 +1137,219 @@ class ComputableNumber(metaclass=ComputableType):
             if compare_left>compare_right:
                 return rational_right
             return (rational_left if rational_left.denominator<rational_right.denominator else rational_right)
+        
+        def __eq__(self,other:RationalLike)->bool|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            if self.denominator==0:
+                if self.numerator==0:
+                    return False
+                if self.numerator>0:
+                    if denominator_right==0 and numerator_right<=0:
+                        return False
+                elif denominator_right==0 and numerator_right>=0:
+                    return False
+            elif denominator_right==0:
+                return False
+            return self.numerator*denominator_right==self.denominator*numerator_right
+        def __ne__(self,other:RationalLike)->bool|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            if self.denominator==0:
+                if self.numerator==0:
+                    return True
+                if self.numerator>0:
+                    if denominator_right==0 and numerator_right<=0:
+                        return True
+                elif denominator_right==0 and numerator_right>=0:
+                    return True
+            elif denominator_right==0:
+                return True
+            return self.numerator*denominator_right!=self.denominator*numerator_right
+        def __lt__(self,other:RationalLike)->bool|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            if self.denominator==0 and denominator_right==0 and self.numerator<0 and numerator_right>0:
+                return True
+            return self.numerator*denominator_right<self.denominator*numerator_right
+        def __le__(self,other:RationalLike)->bool|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            if self.denominator==0:
+                if self.numerator==0:
+                    return False
+                if denominator_right==0:
+                    if self.numerator>0 and numerator_right<0:
+                        return False
+                    if numerator_right==0:
+                        return False
+            elif denominator_right==0 and numerator_right==0:
+                return False
+            return self.numerator*denominator_right<=self.denominator*numerator_right
+        def __gt__(self,other:RationalLike)->bool|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            if self.denominator==0 and denominator_right==0 and self.numerator>0 and numerator_right<0:
+                return True
+            return self.numerator*denominator_right>self.denominator*numerator_right
+        def __ge__(self,other:RationalLike)->bool|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            if self.denominator==0:
+                if self.numerator==0:
+                    return False
+                if denominator_right==0:
+                    if self.numerator<0 and numerator_right>0:
+                        return False
+                    if numerator_right==0:
+                        return False
+            elif denominator_right==0 and numerator_right==0:
+                return False
+            return self.numerator*denominator_right>=self.denominator*numerator_right
+        
+        def __add__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            numerator,denominator,is_special=cls._special_sub(self.numerator,self.denominator,-numerator_right,denominator_right)
+            if is_special:
+                return cls._construct_new_object_for_simple(numerator,denominator)
+            return cls._construct_new_object_for_straight(numerator,denominator)
+        def __radd__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try: 
+                numerator_left,denominator_left,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            numerator,denominator,is_special=cls._special_sub(numerator_left,denominator_left,-self.numerator,self.denominator)
+            if is_special:
+                return cls._construct_new_object_for_simple(numerator,denominator)
+            return cls._construct_new_object_for_straight(numerator,denominator)
+        def __iadd__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            numerator,denominator,is_special=cls._special_sub(self.numerator,self.denominator,-numerator_right,denominator_right)
+            return self._inplace_return(numerator,denominator,is_special)
+        def __sub__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            numerator,denominator,is_special=cls._special_sub(self.numerator,self.denominator,numerator_right,denominator_right)
+            if is_special:
+                return cls._construct_new_object_for_simple(numerator,denominator)
+            return cls._construct_new_object_for_straight(numerator,denominator)
+        def __rsub__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_left,denominator_left,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            numerator,denominator,is_special=cls._special_sub(numerator_left,denominator_left,self.numerator,self.denominator)
+            if is_special:
+                return cls._construct_new_object_for_simple(numerator,denominator)
+            return cls._construct_new_object_for_straight(numerator,denominator)
+        def __isub__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_right,denominator_right,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            numerator,denominator,is_special=cls._special_sub(self.numerator,self.denominator,numerator_right,denominator_right)
+            return self._inplace_return(numerator,denominator,is_special)
+        def __mul__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_down,denominator_down,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            if numerator_down>=0:
+                numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,denominator_down,numerator_down)
+            else:
+                numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,denominator_down,-numerator_down)
+                numerator=-numerator
+            if is_special:
+                return cls._construct_new_object_for_simple(numerator,denominator)
+            return cls._construct_new_object_for_straight(numerator,denominator)
+        def __rmul__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_up,denominator_up,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            if self.numerator>=0:
+                numerator,denominator,is_special=cls._special_div(numerator_up,denominator_up,self.denominator,self.numerator)
+            else:
+                numerator,denominator,is_special=cls._special_div(numerator_up,denominator_up,self.denominator,-self.numerator)
+                numerator=-numerator
+            if is_special:
+                return cls._construct_new_object_for_simple(numerator,denominator)
+            return cls._construct_new_object_for_straight(numerator,denominator)
+        def __imul__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_down,denominator_down,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            if numerator_down>=0:
+                numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,denominator_down,numerator_down)
+            else:
+                numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,denominator_down,-numerator_down)
+                numerator=-numerator
+            return self._inplace_return(numerator,denominator,is_special)
+        def __truediv__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_down,denominator_down,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,numerator_down,denominator_down)
+            if is_special:
+                return cls._construct_new_object_for_simple(numerator,denominator)
+            return cls._construct_new_object_for_straight(numerator,denominator)
+        def __rtruediv__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_up,denominator_up,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            numerator,denominator,is_special=cls._special_div(numerator_up,denominator_up,self.numerator,self.denominator)
+            if is_special:
+                return cls._construct_new_object_for_simple(numerator,denominator)
+            return cls._construct_new_object_for_straight(numerator,denominator)
+        def __itruediv__(self,other:RationalLike)->Self|NotImplementedType:
+            cls=type(self)
+            try:
+                numerator_down,denominator_down,_=cls._analyze_input_for_one_argument(other)
+            except TypeError:
+                return NotImplemented
+            numerator,denominator,is_special=cls._special_div(self.numerator,self.denominator,numerator_down,denominator_down)
+            return self._inplace_return(numerator,denominator,is_special)
+                
         @classmethod
         def _divmod_helper(cls,numerator_up:int,denominator_up:int,numerator_down:int,denominator_down:int,max_denominator:int=1)->tuple[Self,Self]:
             if denominator_down==0:
@@ -1380,27 +1393,6 @@ class ComputableNumber(metaclass=ComputableType):
         def __mod__(self,other:RationalLike)->Self: return self.__divmod__(other)[1]
         def __rmod__(self,other:RationalLike)->Self: return self.__rdivmod__(other)[1]
         __imod__=__mod__
-        def float_bound(self)->tuple[float,float]:
-            cls=type(self)
-            if self.denominator==0:
-                if self.numerator>0:
-                    return float('inf'),float('inf')
-                if self.numerator<0:
-                    return float('-inf'),float('-inf')
-                return float('nan'),float('nan')
-            MAX_FLOAT=sys.float_info.max
-            try:
-                round_float=self.numerator/self.denominator
-            except OverflowError:
-                if self.numerator>0:
-                    return MAX_FLOAT,float('inf')
-                return float('-inf'),-MAX_FLOAT
-            round_rational=cls.convert_from_float(round_float)
-            if round_rational<self:
-                return round_float,math.nextafter(round_float,float('inf'))
-            if round_rational>self:
-                return math.nextafter(round_float,float('-inf')),round_float
-            return round_float,round_float
         @staticmethod
         def _simplest_rational_in_interval(numerator_left:int,denominator_left:int,numerator_right:int,denominator_right:int)->IntegerRatio:
             cross_product_diff=numerator_right*denominator_left-numerator_left*denominator_right
@@ -1449,9 +1441,12 @@ class ComputableNumber(metaclass=ComputableType):
                 other.simplify()
             numerator,denominator=cls._simplest_rational_in_interval(self.numerator,self.denominator,other.numerator,other.denominator)
             return cls._construct_new_object_for_simple(numerator,denominator)
+        
         @classmethod
         def _input_iterator(cls,*args:RationalLike)->Iterator[IntegerRatio]:
-            # You should not input one tuple of two int as two integer.
+            '''
+            You should not input one tuple of two int as two integer.
+            '''
             if len(args)==1:
                 arg=args[0]
                 try:
@@ -1522,6 +1517,7 @@ class ComputableNumber(metaclass=ComputableType):
             return cls._construct_new_object_for_straight(numerator_result,denominator_result)
         @classmethod
         def product(cls,*args:RationalLike)->Self: return cls._product_integer_ratios(cls._input_iterator(*args))
+
         @staticmethod
         def _iroot_integer(n:int,degree:int,n_bit_len:int)->tuple[int,bool]:
             degree_minus_1=degree-1
@@ -1890,6 +1886,11 @@ class ComputableNumber(metaclass=ComputableType):
         _Rational:ClassVar[type[Q]]
         _family_root:ClassVar[Real]
         _container_class:ClassVar["ComputableNumber"]
+
+        __slots__=('_is_called','_init_sign_func','_sign_func','_is_possible_rational','_is_possible_irrational',
+                   '_nearest_left','_nearest_right','_left_answer','_right_answer','_left_rational','_right_rational',
+                   '_floor','_ceil','_is_regular','_exact_rational','_exponent_10','_float_bound','_hash')
+
         _init_sign_func:SignFunctionWithInfo
         _sign_func:SignFunction
         _is_possible_rational:bool
@@ -1903,10 +1904,10 @@ class ComputableNumber(metaclass=ComputableType):
         _floor:int
         _ceil:int
         _is_regular:bool
-        _exact_rational:Q|None=None
-        _exponent_10:int|None=None
-        _float_bound:tuple[float,float]|None=None
-        _hash:int|None=None
+        _exact_rational:Q|None
+        _exponent_10:int|None
+        _float_bound:tuple[float,float]|None
+        _hash:int|None
 
         def _int_bound_for_init(self,left:RationalLike=None,right:RationalLike=None)->tuple[int,int]|Q:
             cls=type(self)
@@ -2151,6 +2152,9 @@ class ComputableNumber(metaclass=ComputableType):
             instance._ceil=-(-numerator//denominator)
             instance._is_regular=True
             instance._exact_rational=rational
+            instance._exponent_10=None
+            instance._float_bound=None
+            instance._hash=None
             return instance
         def _regularize(self)->None:
             if self._is_regular:
@@ -2413,11 +2417,26 @@ class ComputableNumber(metaclass=ComputableType):
                 self._rationalized(result_rational)
                 self._floor=left_integer
                 self._ceil=right_integer
+                self._exponent_10=None
+                self._float_bound=None
+                self._hash=None
             elif args_length==2:
                 is_possible_rational,is_possible_irrational=args
-                if not is_possible_rational and self._is_possible_rational:
+                if not is_possible_rational:
+                    if not is_possible_irrational:
+                        raise ValueError('At least one of is_possible_rational and is_possible_irrational must be True.')
+                    if not self._is_possible_rational:
+                        del self._is_called
+                        return
+                    if not self._is_possible_irrational:
+                        raise ValueError('This number cannot be irrational, contradicting the initialization setting is_possible_irrational=False.')
                     self._is_possible_rational=False
-                if not is_possible_irrational and self._is_possible_irrational:
+                elif not is_possible_irrational:
+                    if not self._is_possible_irrational:
+                        del self._is_called
+                        return
+                    if not self._is_possible_rational:
+                        raise ValueError('This number cannot be rational, contradicting the initialization setting is_possible_rational=False.')
                     self._regularize()
                     self._find_rational_for_regular()
             elif args_length==5:
@@ -2446,6 +2465,11 @@ class ComputableNumber(metaclass=ComputableType):
                 if self._is_possible_irrational and not is_possible_irrational:
                     self._regularize()
                     self._find_rational_for_regular()
+                if self._is_possible_irrational:
+                    self._exact_rational=None
+                self._exponent_10=None
+                self._float_bound=None
+                self._hash=None
             else:
                 raise TypeError(f'Invalid number of arguments: {args_length}')
             del self._is_called
@@ -2503,16 +2527,25 @@ class ComputableNumber(metaclass=ComputableType):
             self._left_rational=constructor(numerator_left,denominator_left)
             self._right_rational=constructor(numerator_right,denominator_right)
             self._is_regular=True
-        def __bool__(self):
-            if self._is_possible_irrational:
-                return True
-            if self._exact_rational==type(self)._Rational.ZERO:
-                return False
-            return True
+        
+        def __repr__(self):
+            cls=type(self)
+            cls_name=cls.__name__
+            container_class=cls._container_class
+            container_class_name=container_class.__name__
+            head_str=f'{container_class_name}.{cls_name}'
+            return f"{head_str}({self._sign_func},{self._is_possible_rational},{self._is_possible_irrational})"
         def __str__(self):
             if self._is_possible_irrational:
                 return f"A real number in the rational interval [{str(self._nearest_left)},{str(self._nearest_right)}]"
             return str(self._exact_rational)
+        def __floor__(self): return self._floor
+        def __ceil__(self): return self._ceil
+        def __trunc__(self):
+            left_int=self._floor
+            return (self._ceil if left_int<0 else left_int)
+        def __int__(self): return self.__trunc__()
+        def int_bound(self)->tuple[int,int]: return self._floor,self._ceil
         def as_integer_ratio(self,fallback_max_denominator:int=None)->IntegerRatio:
             if fallback_max_denominator is None:
                 if not self._is_possible_rational:
@@ -2537,150 +2570,6 @@ class ComputableNumber(metaclass=ComputableType):
             if compare_result==1:
                 return numerator_left,denominator_left
             return type(self)._Rational._simplify(numerator_mid,denominator_mid)
-        def to_scientific_notation(self,precision:int=17)->str:
-            if not isinstance(precision,int):
-                raise TypeError('precision must be an integer')
-            if precision<0:
-                raise ValueError('precision must be non-negative')
-            if not self._is_possible_irrational:
-                result=self._exact_rational.to_scientific_notation(precision)
-                if self._exponent_10 is None:
-                    self._exponent_10=int(result.split('e')[1])
-                return result
-            left_integer=self._floor
-            if left_integer<0:
-                left_integer=-(left_integer+1)
-                is_positive=False
-                sign_str='-'
-                def abs_sign_func(x:int,y:int)->CompareResult:
-                     return -self._init_sign_func(-x,y)
-            else:
-                is_positive=True
-                sign_str=''
-                def abs_sign_func(x:int,y:int)->CompareResult:
-                     return self._init_sign_func(x,y)
-            if self._exponent_10 is not None:
-                exponent=self._exponent_10
-            else:
-                if left_integer>=1:
-                    exponent=len(str(left_integer))-1
-                else:
-                    if is_positive:
-                        numerator_left,denominator_left=self._nearest_left.numerator,self._nearest_left.denominator
-                        numerator_right,denominator_right=self._nearest_right.numerator,self._nearest_right.denominator
-                    else:
-                        numerator_left,denominator_left=-(self._nearest_right.numerator),self._nearest_right.denominator
-                        numerator_right,denominator_right=-(self._nearest_left.numerator),self._nearest_left.denominator
-                    exponent_right=1-len(str(numerator_right//denominator_right))
-                    denominator_e_right=10**(-exponent_right)
-                    if numerator_left==0:
-                        exponent_left=exponent_right-1
-                        denominator_e_left=denominator_e_right*10
-                        compare_result=abs_sign_func(1,denominator_e_left)
-                        step=1
-                        while compare_result==1:
-                            exponent_right=exponent_left
-                            denominator_e_right=denominator_e_left
-                            exponent_left-=step
-                            denominator_e_left*=10**step
-                            compare_result=abs_sign_func(1,denominator_e_left)
-                            step<<=1
-                    else:
-                        left_invert_ceil=-(-denominator_left//numerator_left)
-                        is_ten_power=True
-                        exponent_left=0
-                        quotient,remainder=divmod(left_invert_ceil,10)
-                        while quotient!=0:
-                            exponent_left-=1
-                            if is_ten_power and remainder!=0:
-                                is_ten_power=False
-                            quotient,remainder=divmod(quotient,10)
-                        if is_ten_power and remainder!=1:
-                            is_ten_power=False
-                        if not is_ten_power:
-                            exponent_left-=1
-                    is_determined=False
-                    while exponent_left+1!=exponent_right:
-                        exponent_total=exponent_left+exponent_right
-                        exponent_mid=exponent_total>>1
-                        if exponent_mid<<1!=exponent_total and exponent_mid&1:
-                            exponent_mid+=1
-                        denominator_e_mid=denominator_e_right*(10**(exponent_right-exponent_mid))
-                        compare_result=abs_sign_func(1,denominator_e_mid)
-                        if compare_result==1:
-                            exponent_right=exponent_mid
-                            denominator_e_right=denominator_e_mid
-                        elif compare_result==-1:
-                            exponent_left=exponent_mid
-                            denominator_e_left=denominator_e_mid
-                        else:
-                            exponent=exponent_mid
-                            is_determined=True
-                            break
-                    if not is_determined:
-                        exponent=exponent_left
-                self._exponent_10=exponent
-            if exponent>=0:
-                exponent_str='e+'+str(exponent)
-            else:
-                exponent_str='e'+str(exponent)
-            if is_positive:
-                numerator_left,denominator_left=self._nearest_left.numerator,self._nearest_left.denominator
-                numerator_right,denominator_right=self._nearest_right.numerator,self._nearest_right.denominator
-            else:
-                numerator_left,denominator_left=-(self._nearest_right.numerator),self._nearest_right.denominator
-                numerator_right,denominator_right=-(self._nearest_left.numerator),self._nearest_left.denominator
-            exponent-=precision
-            if exponent>=0:
-                numerator_scalar=10**exponent
-                search_left=numerator_left//(numerator_scalar*denominator_left)
-                search_right=-(-numerator_right//(numerator_scalar*denominator_right))
-                is_found=False
-                while search_left+1!=search_right:
-                    search_total=search_left+search_right
-                    search_mid=search_total>>1
-                    if search_mid<<1!=search_total and search_mid&1:
-                        search_mid+=1
-                    test_numerator=search_mid*numerator_scalar
-                    compare_result=abs_sign_func(test_numerator,1)
-                    if compare_result==1:
-                        search_right=search_mid
-                    elif compare_result==-1:
-                        search_left=search_mid
-                    else:
-                        mantissa=search_mid
-                        is_found=True
-                        break
-                if not is_found:
-                    mantissa=search_left
-            else:
-                denominator_scalar=10**(-exponent)
-                search_left=(numerator_left*denominator_scalar)//denominator_left
-                search_right=-(-(numerator_right*denominator_scalar)//denominator_right)
-                is_found=False
-                while search_left+1!=search_right:
-                    search_total=search_left+search_right
-                    search_mid=search_total>>1
-                    if search_mid<<1!=search_total and search_mid&1:
-                        search_mid+=1
-                    compare_result=abs_sign_func(search_mid,denominator_scalar)
-                    if compare_result==1:
-                        search_right=search_mid
-                    elif compare_result==-1:
-                        search_left=search_mid
-                    else:
-                        mantissa=search_mid
-                        is_found=True
-                        break
-                if not is_found:
-                    mantissa=search_left
-            if is_found:
-                mantissa_str=str(mantissa).rstrip('0')
-            else:
-                mantissa_str=str(mantissa)
-            if len(mantissa_str)>1:
-                mantissa_str=mantissa_str[0]+'.'+mantissa_str[1:]
-            return sign_str+mantissa_str+exponent_str
         def float_bound(self)->tuple[float,float]:
             if self._float_bound is not None:
                 return self._float_bound
@@ -2837,20 +2726,157 @@ class ComputableNumber(metaclass=ComputableType):
             if compare_result==-1:
                 return right_float
             return numerator_mid/denominator_mid
+        def to_scientific_notation(self,precision:int=17)->str:
+            if not isinstance(precision,int):
+                raise TypeError('precision must be an integer')
+            if precision<0:
+                raise ValueError('precision must be non-negative')
+            if not self._is_possible_irrational:
+                result=self._exact_rational.to_scientific_notation(precision)
+                if self._exponent_10 is None:
+                    self._exponent_10=int(result.split('e')[1])
+                return result
+            left_integer=self._floor
+            if left_integer<0:
+                left_integer=-(left_integer+1)
+                is_positive=False
+                sign_str='-'
+                def abs_sign_func(x:int,y:int)->CompareResult:
+                     return -self._init_sign_func(-x,y)
+            else:
+                is_positive=True
+                sign_str=''
+                def abs_sign_func(x:int,y:int)->CompareResult:
+                     return self._init_sign_func(x,y)
+            if self._exponent_10 is not None:
+                exponent=self._exponent_10
+            else:
+                if left_integer>=1:
+                    exponent=len(str(left_integer))-1
+                else:
+                    if is_positive:
+                        numerator_left,denominator_left=self._nearest_left.numerator,self._nearest_left.denominator
+                        numerator_right,denominator_right=self._nearest_right.numerator,self._nearest_right.denominator
+                    else:
+                        numerator_left,denominator_left=-(self._nearest_right.numerator),self._nearest_right.denominator
+                        numerator_right,denominator_right=-(self._nearest_left.numerator),self._nearest_left.denominator
+                    exponent_right=1-len(str(numerator_right//denominator_right))
+                    denominator_e_right=10**(-exponent_right)
+                    if numerator_left==0:
+                        exponent_left=exponent_right-1
+                        denominator_e_left=denominator_e_right*10
+                        compare_result=abs_sign_func(1,denominator_e_left)
+                        step=1
+                        while compare_result==1:
+                            exponent_right=exponent_left
+                            denominator_e_right=denominator_e_left
+                            exponent_left-=step
+                            denominator_e_left*=10**step
+                            compare_result=abs_sign_func(1,denominator_e_left)
+                            step<<=1
+                    else:
+                        left_invert_ceil=-(-denominator_left//numerator_left)
+                        is_ten_power=True
+                        exponent_left=0
+                        quotient,remainder=divmod(left_invert_ceil,10)
+                        while quotient!=0:
+                            exponent_left-=1
+                            if is_ten_power and remainder!=0:
+                                is_ten_power=False
+                            quotient,remainder=divmod(quotient,10)
+                        if is_ten_power and remainder!=1:
+                            is_ten_power=False
+                        if not is_ten_power:
+                            exponent_left-=1
+                    is_determined=False
+                    while exponent_left+1!=exponent_right:
+                        exponent_total=exponent_left+exponent_right
+                        exponent_mid=exponent_total>>1
+                        if exponent_mid<<1!=exponent_total and exponent_mid&1:
+                            exponent_mid+=1
+                        denominator_e_mid=denominator_e_right*(10**(exponent_right-exponent_mid))
+                        compare_result=abs_sign_func(1,denominator_e_mid)
+                        if compare_result==1:
+                            exponent_right=exponent_mid
+                            denominator_e_right=denominator_e_mid
+                        elif compare_result==-1:
+                            exponent_left=exponent_mid
+                            denominator_e_left=denominator_e_mid
+                        else:
+                            exponent=exponent_mid
+                            is_determined=True
+                            break
+                    if not is_determined:
+                        exponent=exponent_left
+                self._exponent_10=exponent
+            if exponent>=0:
+                exponent_str='e+'+str(exponent)
+            else:
+                exponent_str='e'+str(exponent)
+            if is_positive:
+                numerator_left,denominator_left=self._nearest_left.numerator,self._nearest_left.denominator
+                numerator_right,denominator_right=self._nearest_right.numerator,self._nearest_right.denominator
+            else:
+                numerator_left,denominator_left=-(self._nearest_right.numerator),self._nearest_right.denominator
+                numerator_right,denominator_right=-(self._nearest_left.numerator),self._nearest_left.denominator
+            exponent-=precision
+            if exponent>=0:
+                numerator_scalar=10**exponent
+                search_left=numerator_left//(numerator_scalar*denominator_left)
+                search_right=-(-numerator_right//(numerator_scalar*denominator_right))
+                is_found=False
+                while search_left+1!=search_right:
+                    search_total=search_left+search_right
+                    search_mid=search_total>>1
+                    if search_mid<<1!=search_total and search_mid&1:
+                        search_mid+=1
+                    test_numerator=search_mid*numerator_scalar
+                    compare_result=abs_sign_func(test_numerator,1)
+                    if compare_result==1:
+                        search_right=search_mid
+                    elif compare_result==-1:
+                        search_left=search_mid
+                    else:
+                        mantissa=search_mid
+                        is_found=True
+                        break
+                if not is_found:
+                    mantissa=search_left
+            else:
+                denominator_scalar=10**(-exponent)
+                search_left=(numerator_left*denominator_scalar)//denominator_left
+                search_right=-(-(numerator_right*denominator_scalar)//denominator_right)
+                is_found=False
+                while search_left+1!=search_right:
+                    search_total=search_left+search_right
+                    search_mid=search_total>>1
+                    if search_mid<<1!=search_total and search_mid&1:
+                        search_mid+=1
+                    compare_result=abs_sign_func(search_mid,denominator_scalar)
+                    if compare_result==1:
+                        search_right=search_mid
+                    elif compare_result==-1:
+                        search_left=search_mid
+                    else:
+                        mantissa=search_mid
+                        is_found=True
+                        break
+                if not is_found:
+                    mantissa=search_left
+            if is_found:
+                mantissa_str=str(mantissa).rstrip('0')
+            else:
+                mantissa_str=str(mantissa)
+            if len(mantissa_str)>1:
+                mantissa_str=mantissa_str[0]+'.'+mantissa_str[1:]
+            return sign_str+mantissa_str+exponent_str
         def __complex__(self): return complex(float(self),0)
-        def __repr__(self):
-            cls=type(self)
-            cls_name=cls.__name__
-            container_class=cls._container_class
-            container_class_name=container_class.__name__
-            head_str=f'{container_class_name}.{cls_name}'
-            return f"{head_str}({self._sign_func},{self._is_possible_rational},{self._is_possible_irrational})"
-        def __int__(self):
-            left_int=self._floor
-            return (self._ceil if left_int<0 else left_int)
-        def __floor__(self): return self._floor
-        def __ceil__(self): return self._ceil
-        def __trunc__(self): return self.__int__()
+        def __bool__(self):
+            if self._is_possible_irrational:
+                return True
+            if self._exact_rational==type(self)._Rational.ZERO:
+                return False
+            return True
         set_max_denominator_for_hash=None
         '''
         The class attribute set_max_denominator_for_hash controls the hash precision. This class's hash function ensures that a RealNumber object with a small
@@ -2885,6 +2911,119 @@ class ComputableNumber(metaclass=ComputableType):
                 return self._hash
             self._hash=hash(self._exact_rational)
             return self._hash
+        
+        def compare(self,other:RealLike)->CompareResult:
+            cls=type(self)
+            try:
+                other_obj,_,other_is_possible_irrational=cls._analyze_input_for_operator(other)
+            except TypeError:
+                return NotImplemented
+            if not other_is_possible_irrational:
+                numerator_other,denominator_other=other_obj
+                return self._sign_func(numerator_other,denominator_other)
+            elif not self._is_possible_irrational:
+                rational_self=self._exact_rational.as_integer_ratio()
+                numerator_self,denominator_self=rational_self
+                sign_other=other_obj._init_sign_func(numerator_self,denominator_self)
+                return -sign_other
+            else:
+                self_L=self._nearest_left
+                self_R=self._nearest_right
+                other_L=other_obj._nearest_left
+                other_R=other_obj._nearest_right
+                if self_R.numerator*other_L.denominator<=self_R.denominator*other_L.numerator:
+                    return 1
+                elif self_L.numerator*other_R.denominator>=self_L.denominator*other_R.numerator:
+                    return -1
+                else:
+                    if other_obj is self:
+                        return 0
+                    self._regularize()
+                    other_obj._regularize()
+                    self_width=self.current_width(depend_on_structure=True)
+                    other_width=other_obj.current_width(depend_on_structure=True)
+                    cross_product_left=self_width.numerator*other_width.denominator
+                    cross_product_right=self_width.denominator*other_width.numerator
+                    if cross_product_left<cross_product_right:
+                        left,right=self.current_bound(depend_on_structure=True)
+                        numerator_left,denominator_left=left.numerator,left.denominator
+                        compare_left=other_obj._init_sign_func(numerator_left,denominator_left)
+                        if compare_left>=0:
+                            return -1
+                        numerator_right,denominator_right=right.numerator,right.denominator
+                        compare_right=other_obj._init_sign_func(numerator_right,denominator_right)
+                        if compare_right<=0:
+                            return 1
+                        other_obj._left_rational=left
+                        other_obj._right_rational=right
+                        other_obj._is_regular=True
+                    elif cross_product_left>cross_product_right:
+                        left,right=other_obj.current_bound(depend_on_structure=True)
+                        numerator_left,denominator_left=left.numerator,left.denominator
+                        compare_left=self._init_sign_func(numerator_left,denominator_left)
+                        if compare_left>=0:
+                            return 1
+                        numerator_right,denominator_right=right.numerator,right.denominator
+                        compare_right=self._init_sign_func(numerator_right,denominator_right)
+                        if compare_right<=0:
+                            return -1
+                        self._left_rational=left
+                        self._right_rational=right
+                        self._is_regular=True
+                    else:
+                        left,right=self.current_bound(depend_on_structure=True)
+                        numerator_left,denominator_left=left.numerator,left.denominator
+                        numerator_right,denominator_right=right.numerator,right.denominator
+                    while True:
+                        numerator_mid=numerator_left+numerator_right
+                        denominator_mid=denominator_left+denominator_right
+                        compare_mid_self=self._init_sign_func(numerator_mid,denominator_mid,input_is_regular=True)
+                        compare_mid_other=other_obj._init_sign_func(numerator_mid,denominator_mid,input_is_regular=True)
+                        if compare_mid_self==-1:
+                            if compare_mid_other==-1: 
+                                numerator_left=numerator_mid
+                                denominator_left=denominator_mid
+                            else:
+                                return -1
+                        elif compare_mid_self==1:
+                            if compare_mid_other==1:
+                                numerator_right=numerator_mid
+                                denominator_right=denominator_mid
+                            else:
+                                return 1
+                        else:
+                            return -compare_mid_other
+        def __eq__(self,other:RealLike)->bool|NotImplementedType:
+            result=self.compare(other)
+            if result is NotImplemented:
+                return NotImplemented
+            return result==0
+        def __ne__(self,other:RealLike)->bool|NotImplementedType:
+            result=self.compare(other)
+            if result is NotImplemented:
+                return NotImplemented
+            return result!=0
+        def __lt__(self,other:RealLike)->bool|NotImplementedType:
+            result=self.compare(other)
+            if result is NotImplemented:
+                return NotImplemented
+            return result==1
+        def __le__(self,other:RealLike)->bool|NotImplementedType:
+            result=self.compare(other)
+            if result is NotImplemented:
+                return NotImplemented
+            return result!=-1
+        def __gt__(self,other:RealLike)->bool|NotImplementedType:
+            result=self.compare(other)
+            if result is NotImplemented:
+                return NotImplemented
+            return result==-1
+        def __ge__(self,other:RealLike)->bool|NotImplementedType:
+            result=self.compare(other)
+            if result is NotImplemented:
+                return NotImplemented
+            return result!=1
+        
         def __neg__(self):
             cls=type(self)
             if not self._is_possible_irrational:
@@ -4815,118 +4954,6 @@ class ComputableNumber(metaclass=ComputableType):
         #endregion
         #endregion
         
-        def compare(self,other:RealLike)->CompareResult:
-            cls=type(self)
-            try:
-                other_obj,_,other_is_possible_irrational=cls._analyze_input_for_operator(other)
-            except TypeError:
-                return NotImplemented
-            if not other_is_possible_irrational:
-                numerator_other,denominator_other=other_obj
-                return self._sign_func(numerator_other,denominator_other)
-            elif not self._is_possible_irrational:
-                rational_self=self._exact_rational.as_integer_ratio()
-                numerator_self,denominator_self=rational_self
-                sign_other=other_obj._init_sign_func(numerator_self,denominator_self)
-                return -sign_other
-            else:
-                self_L=self._nearest_left
-                self_R=self._nearest_right
-                other_L=other_obj._nearest_left
-                other_R=other_obj._nearest_right
-                if self_R.numerator*other_L.denominator<=self_R.denominator*other_L.numerator:
-                    return 1
-                elif self_L.numerator*other_R.denominator>=self_L.denominator*other_R.numerator:
-                    return -1
-                else:
-                    if other_obj is self:
-                        return 0
-                    self._regularize()
-                    other_obj._regularize()
-                    self_width=self.current_width(depend_on_structure=True)
-                    other_width=other_obj.current_width(depend_on_structure=True)
-                    cross_product_left=self_width.numerator*other_width.denominator
-                    cross_product_right=self_width.denominator*other_width.numerator
-                    if cross_product_left<cross_product_right:
-                        left,right=self.current_bound(depend_on_structure=True)
-                        numerator_left,denominator_left=left.numerator,left.denominator
-                        compare_left=other_obj._init_sign_func(numerator_left,denominator_left)
-                        if compare_left>=0:
-                            return -1
-                        numerator_right,denominator_right=right.numerator,right.denominator
-                        compare_right=other_obj._init_sign_func(numerator_right,denominator_right)
-                        if compare_right<=0:
-                            return 1
-                        other_obj._left_rational=left
-                        other_obj._right_rational=right
-                        other_obj._is_regular=True
-                    elif cross_product_left>cross_product_right:
-                        left,right=other_obj.current_bound(depend_on_structure=True)
-                        numerator_left,denominator_left=left.numerator,left.denominator
-                        compare_left=self._init_sign_func(numerator_left,denominator_left)
-                        if compare_left>=0:
-                            return 1
-                        numerator_right,denominator_right=right.numerator,right.denominator
-                        compare_right=self._init_sign_func(numerator_right,denominator_right)
-                        if compare_right<=0:
-                            return -1
-                        self._left_rational=left
-                        self._right_rational=right
-                        self._is_regular=True
-                    else:
-                        left,right=self.current_bound(depend_on_structure=True)
-                        numerator_left,denominator_left=left.numerator,left.denominator
-                        numerator_right,denominator_right=right.numerator,right.denominator
-                    while True:
-                        numerator_mid=numerator_left+numerator_right
-                        denominator_mid=denominator_left+denominator_right
-                        compare_mid_self=self._init_sign_func(numerator_mid,denominator_mid,input_is_regular=True)
-                        compare_mid_other=other_obj._init_sign_func(numerator_mid,denominator_mid,input_is_regular=True)
-                        if compare_mid_self==-1:
-                            if compare_mid_other==-1: 
-                                numerator_left=numerator_mid
-                                denominator_left=denominator_mid
-                            else:
-                                return -1
-                        elif compare_mid_self==1:
-                            if compare_mid_other==1:
-                                numerator_right=numerator_mid
-                                denominator_right=denominator_mid
-                            else:
-                                return 1
-                        else:
-                            return -compare_mid_other
-        def __eq__(self,other:RealLike)->bool|NotImplementedType:
-            result=self.compare(other)
-            if result is NotImplemented:
-                return NotImplemented
-            return result==0
-        def __ne__(self,other:RealLike)->bool|NotImplementedType:
-            result=self.compare(other)
-            if result is NotImplemented:
-                return NotImplemented
-            return result!=0
-        def __lt__(self,other:RealLike)->bool|NotImplementedType:
-            result=self.compare(other)
-            if result is NotImplemented:
-                return NotImplemented
-            return result==1
-        def __le__(self,other:RealLike)->bool|NotImplementedType:
-            result=self.compare(other)
-            if result is NotImplemented:
-                return NotImplemented
-            return result!=-1
-        def __gt__(self,other:RealLike)->bool|NotImplementedType:
-            result=self.compare(other)
-            if result is NotImplemented:
-                return NotImplemented
-            return result==-1
-        def __ge__(self,other:RealLike)->bool|NotImplementedType:
-            result=self.compare(other)
-            if result is NotImplemented:
-                return NotImplemented
-            return result!=1
-
         @classmethod
         def root_finding(cls,func:Callable[[int,int],RealLike],interval:tuple[RationalLike,RationalLike])->Self:
             '''
