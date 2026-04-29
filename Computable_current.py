@@ -2047,37 +2047,6 @@ class ComputableNumber(metaclass=ComputableType):
                     raise ValueError('numerator and denominator cannot both be zero')
                 return sign_function(numerator,denominator)
             return wrapper
-        def _wrapper_for_sign_function(self,sign_function:SignFunction)->tuple[SignFunctionWithInfo,SignFunction]:
-            def original_sign_func(numerator:int,denominator:int,input_is_regular:bool=False)->CompareResult:
-                left=self._nearest_left
-                compare_left=numerator*left.denominator
-                compare_right=denominator*left.numerator
-                if compare_left<=compare_right:
-                    return (-1 if compare_left!=compare_right else self._left_answer)
-                right=self._nearest_right
-                compare_left=numerator*right.denominator
-                compare_right=denominator*right.numerator
-                if compare_left>=compare_right:
-                    return (1 if compare_left!=compare_right else self._right_answer)
-                compare_result=sign_function(numerator,denominator)
-                input_rational=type(self)._Rational(numerator,denominator)
-                if compare_result==-1:
-                    self._nearest_left=input_rational
-                    if input_is_regular:
-                        self._left_rational=input_rational
-                    elif self._is_regular:
-                        self._is_regular=False
-                elif compare_result==1:
-                    self._nearest_right=input_rational
-                    if input_is_regular:
-                        self._right_rational=input_rational
-                    elif self._is_regular:
-                        self._is_regular=False
-                else:
-                    self._rationalized(input_rational)
-                return compare_result
-            result_func=type(self)._wrapper_for_special_cases(original_sign_func)
-            return original_sign_func,result_func
         @classmethod
         def _rational_to_sign_func(cls,numerator_input:int,denominator_input:int)->SignFunctionWithInfo:
             if denominator_input==0:
@@ -2132,6 +2101,39 @@ class ComputableNumber(metaclass=ComputableType):
             self._right_rational=rational
             if not self._is_regular:
                 self._is_regular=True
+        def _wrapper_for_sign_function(self,sign_function:SignFunction)->tuple[SignFunctionWithInfo,SignFunction]:
+            def original_sign_func(numerator:int,denominator:int,input_is_regular:bool=False)->CompareResult:
+                left=self._nearest_left
+                compare_left=numerator*left.denominator
+                compare_right=denominator*left.numerator
+                if compare_left<=compare_right:
+                    return (-1 if compare_left!=compare_right else self._left_answer)
+                right=self._nearest_right
+                compare_left=numerator*right.denominator
+                compare_right=denominator*right.numerator
+                if compare_left>=compare_right:
+                    return (1 if compare_left!=compare_right else self._right_answer)
+                compare_result=sign_function(numerator,denominator)
+                if not self._is_possible_irrational:
+                    return compare_result
+                input_rational=type(self)._Rational(numerator,denominator)
+                if compare_result==-1:
+                    self._nearest_left=input_rational
+                    if input_is_regular:
+                        self._left_rational=input_rational
+                    elif self._is_regular:
+                        self._is_regular=False
+                elif compare_result==1:
+                    self._nearest_right=input_rational
+                    if input_is_regular:
+                        self._right_rational=input_rational
+                    elif self._is_regular:
+                        self._is_regular=False
+                else:
+                    self._rationalized(input_rational)
+                return compare_result
+            result_func=type(self)._wrapper_for_special_cases(original_sign_func)
+            return original_sign_func,result_func
         @classmethod
         def _convert_from_rational(cls,rational:Q)->Self:
             rational=rational.intern()
@@ -2279,7 +2281,9 @@ class ComputableNumber(metaclass=ComputableType):
             if max_denominator==1:
                 return constructor(self._floor,1),constructor(self._ceil,1)
             if not self._is_possible_irrational:
-                return self._exact_rational.rational_bound(max_denominator)
+                left,right=self._exact_rational.rational_bound(max_denominator)
+                left,right=left.intern(),right.intern()
+                return left,right
             left_rational=self._left_rational
             right_rational=self._right_rational
             numerator_left,denominator_left=left_rational.numerator,left_rational.denominator
@@ -3037,7 +3041,7 @@ class ComputableNumber(metaclass=ComputableType):
             def result_sign_func(numerator,denominator):
                 if not self._is_possible_irrational:
                     result_rational=-(self._exact_rational)
-                    result._rationalized(result_rational)
+                    result._rationalized(result_rational.intern())
                     return result._init_sign_func(numerator,denominator)
                 if not self._is_possible_rational:
                     result._init_sign_func,result._sign_func=result._wrapper_for_sign_function(new_sign_func)
