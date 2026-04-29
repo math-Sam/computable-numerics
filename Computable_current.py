@@ -4972,7 +4972,7 @@ class ComputableNumber(metaclass=ComputableType):
                 raise ValueError('interval must be finite')
             if init_left>init_right:
                 init_left,init_right=init_right,init_left
-            if init_left==init_right:
+            if init_left is init_right:
                 return cls._convert_from_rational(init_left)
             analyzer=Rationalclass._analyze_input_for_one_argument
             def value_sign_func(numerator:int,denominator:int)->CompareResult:
