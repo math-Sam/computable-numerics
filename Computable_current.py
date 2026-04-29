@@ -2221,8 +2221,8 @@ class ComputableNumber(metaclass=ComputableType):
             self._regularize()
             left_query,right_query=self._nearest_left,self._nearest_right
             left_rational,right_rational=self._left_rational,self._right_rational
-            left_is_equal=(left_query==left_rational)
-            right_is_equal=(right_query==right_rational)
+            left_is_equal=(left_query is left_rational)
+            right_is_equal=(right_query is right_rational)
             if left_is_equal and right_is_equal:
                 return
             numerator_left,denominator_left=left_rational.numerator,left_rational.denominator
@@ -2878,7 +2878,7 @@ class ComputableNumber(metaclass=ComputableType):
         def __bool__(self):
             if self._is_possible_irrational:
                 return True
-            if self._exact_rational==type(self)._Rational.ZERO:
+            if self._exact_rational is type(self)._Rational.ZERO:
                 return False
             return True
         set_max_denominator_for_hash=None
@@ -2898,7 +2898,7 @@ class ComputableNumber(metaclass=ComputableType):
             if max_denominator is None:
                 raise TypeError('set_max_denominator_for_hash must be set before __hash__ is called for a non-rational-only object for the first time.')
             left,right=self.rational_bound(max_denominator)
-            if left==right:
+            if left is right:
                 self._hash=hash(left)
                 return self._hash
             denominator_left,denominator_right=left.denominator,right.denominator
@@ -4323,41 +4323,42 @@ class ComputableNumber(metaclass=ComputableType):
 
         #region: Division operation
         def keep_away_from_zero(self)->None:
+            Q_ZERO=type(self)._Rational.ZERO
             if not self._is_possible_irrational:
-                if self._exact_rational==0:
+                if self._exact_rational is Q_ZERO:
                     raise ValueError("Cannot keep away from zero for zero.")
                 else:
                     return
             else:
                 left_integer=self._floor
                 right_integer=self._ceil
-                if left_integer==0 or right_integer==0:
-                    self_is_positive=(left_integer==0)
-                    if self_is_positive:
-                        def abs_sign_function(n,d):
-                            return self._init_sign_func(n,d)
-                        abs_left=self._nearest_left
-                        abs_right=self._nearest_right
-                    else:
-                        def abs_sign_function(n,d):
-                            return -(self._init_sign_func(-n,d))
-                        abs_left=-(self._nearest_right)
-                        abs_right=-(self._nearest_left)
-                    if abs_left.numerator==0:
-                        right_denominator=abs_right.denominator//abs_right.numerator
-                        left_denominator=right_denominator<<1
-                    else:
-                        left_denominator=-(-abs_left.denominator//abs_left.numerator)
-                        right_denominator=abs_right.denominator//abs_right.numerator
-                        temp_left_denominator=right_denominator<<1
-                        if left_denominator<=temp_left_denominator:
-                            return
-                        left_denominator=temp_left_denominator
-                    compare_result=abs_sign_function(1,left_denominator)
-                    while compare_result==1:
-                        left_denominator=right_denominator
-                        right_denominator=right_denominator<<1
-                        compare_result=abs_sign_function(1,right_denominator)
+                if left_integer>0 or right_integer<0:
+                    return
+                self_is_positive=(left_integer==0)
+                if self_is_positive:
+                    def abs_sign_function(n,d):
+                        return self._init_sign_func(n,d)
+                    abs_left,abs_right=self._nearest_left,self._nearest_right
+                else:
+                    def abs_sign_function(n,d):
+                        return -(self._init_sign_func(-n,d))
+                    abs_left,abs_right=-(self._nearest_right),-(self._nearest_left)
+                    abs_left,abs_right=abs_left.intern(),abs_right.intern()
+                if abs_left is Q_ZERO:
+                    right_denominator=abs_right.denominator//abs_right.numerator
+                    left_denominator=right_denominator<<1
+                else:
+                    left_denominator=-(-abs_left.denominator//abs_left.numerator)
+                    right_denominator=abs_right.denominator//abs_right.numerator
+                    temp_left_denominator=right_denominator<<1
+                    if left_denominator<=temp_left_denominator:
+                        return
+                    left_denominator=temp_left_denominator
+                compare_result=abs_sign_function(1,left_denominator)
+                while compare_result==1:
+                    left_denominator=right_denominator
+                    right_denominator=right_denominator<<1
+                    compare_result=abs_sign_function(1,right_denominator)
         @classmethod
         def _rational_div_rational(cls,op1_numerator:int,op1_denominator:int,op2_numerator:int,op2_denominator:int)->Q:
             RaN=cls._Rational
