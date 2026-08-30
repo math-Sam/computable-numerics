@@ -19,12 +19,12 @@
 ## 特色
 
 - 五種公開純量數值制度：
-  - `Rational`：\(\mathbb Q\)
-  - `GaussianRational`：\(\mathbb Q(i)\)
-  - `Algebraic`：\(\overline{\mathbb Q}\)
+  - `Rational`：$\mathbb Q$
+  - `GaussianRational`：$\mathbb Q(i)$
+  - `Algebraic`：$\overline{\mathbb Q}$
   - `ComputableReal`：可計算實數
   - `ComputableComplex`：可計算複數
-- 公開、不可變的精確 `Polynomial`，係數環為 \(\mathbb Z[X]\)。
+- 公開、不可變的精確 `Polynomial`，係數環為 $\mathbb Z[X]$。
 - `Rational` / `GaussianRational` / `Algebraic` 的有限精確算術。
 - 一般 `ComputableReal` / `ComputableComplex` 的 demand-driven 計算 DAG。
 - 可持久重用的 certified interval / rectangle / exact lower-regime knowledge。
@@ -46,9 +46,9 @@
 
 | 類別 | 數學值域 | 主要特性 |
 |---|---|---|
-| `Rational` | \(\mathbb Q\) | 四則、等號、次序、整數轉換與核心投影都可有限精確完成 |
-| `GaussianRational` | \(\mathbb Q(i)\) | 兩個有理座標組成的 exact complex field；也是複平面上的精確探針 |
-| `Algebraic` | \(\overline{\mathbb Q}\) | 由整係數多項式與唯一根隔離區域精確指定；等號與實代數數次序仍可有限決定 |
+| `Rational` | $\mathbb Q$ | 四則、等號、次序、整數轉換與核心投影都可有限精確完成 |
+| `GaussianRational` | $\mathbb Q(i)$ | 兩個有理座標組成的 exact complex field；也是複平面上的精確探針 |
+| `Algebraic` | $\overline{\mathbb Q}$ | 由整係數多項式與唯一根隔離區域精確指定；等號與實代數數次序仍可有限決定 |
 | `ComputableReal` | 可計算實數 | 可任意精化，但一般等號不保證有限決定 |
 | `ComputableComplex` | 可計算複數 | 一般等號不保證有限決定；「是否為實數」本身也可能是等號問題 |
 
@@ -141,7 +141,7 @@ print(z * w)
 print(z.conjugate())
 ```
 
-`GaussianRational` 表示的是 \(\mathbb Q(i)\)，不是近似複數。有限 Python `complex` 會先依兩個 binary64 座標精確解碼，再進入 exact arithmetic。
+`GaussianRational` 表示的是 $\mathbb Q(i)$，不是近似複數。有限 Python `complex` 會先依兩個 binary64 座標精確解碼，再進入 exact arithmetic。
 
 ### 整係數多項式
 
@@ -767,7 +767,7 @@ x = ComputableReal.from_comparator_source(source)
 第一版完整實作後，以下仍不屬 v1 frozen public surface：
 
 - `sqrt` / `log` / 一般 elementary real or complex functions；
-- 內建 native constants，例如 \(\pi\)、\(e\)；
+- 內建 native constants，例如 $\pi$、$e$；
 - `floor_process` / `ceil_process` / `round_process`；
 - correctly-rounded / strict-nearest 的 general semantic machine-number process；
 - 額外 public grid families，例如 `DyadicGrid`；
