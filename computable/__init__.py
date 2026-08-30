@@ -1,9 +1,7 @@
 """Computable exact numerical runtime.
 
-The current implementation checkpoint is Roadmap Phase 1: core architecture
-and public numeric regime shells.  Exact numeric value semantics are added in
-later phases and shell constructors deliberately fail rather than fabricate
-placeholder denotations.
+The current implementation checkpoint is Roadmap Phase 2: the Rational exact
+substrate is implemented while later numeric regimes remain deliberate shells.
 """
 
 from ._bootstrap import CONVERSIONS, NUMERIC_FAMILY, PROMOTIONS, bootstrap

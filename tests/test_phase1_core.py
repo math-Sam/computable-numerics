@@ -1,4 +1,4 @@
-"""Roadmap Phase-1 conformance tests."""
+"""Roadmap Phase-1 conformance tests retained as regression coverage."""
 
 from __future__ import annotations
 
@@ -51,8 +51,8 @@ class TestImportsAndBootstrap(unittest.TestCase):
     def test_bootstrap_is_idempotent(self) -> None:
         self.assertIs(computable.bootstrap(), computable.bootstrap())
 
-    def test_shells_do_not_fabricate_values(self) -> None:
-        for cls in (Rational, GaussianRational, Algebraic, ComputableReal, ComputableComplex):
+    def test_future_phase_shells_do_not_fabricate_values(self) -> None:
+        for cls in (GaussianRational, Algebraic, ComputableReal, ComputableComplex):
             with self.subTest(cls=cls.__name__), self.assertRaises(NotImplementedError):
                 cls()
 
