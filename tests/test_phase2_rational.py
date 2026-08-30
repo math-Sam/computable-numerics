@@ -1,9 +1,16 @@
-"""Roadmap Phase-2 Rational conformance and exactness tests."""
+"""Roadmap Phase-2 Rational conformance, exactness, and hot-path tests."""
 from __future__ import annotations
-import copy,gc,math,random,sys,unittest,weakref
+import copy
+import gc
+import math
+import random
+import sys
+import unittest
+import weakref
 from fractions import Fraction
+from unittest.mock import patch
 from computable import DecisionProcess,Pending,Rational
-from computable.core.promotion import SUBDOMAINS
+from computable.core.promotion import ExactSubdomainRegistry,SUBDOMAINS
 from computable.projections.binary import T64
 
 class TestConstruction(unittest.TestCase):
@@ -11,6 +18,10 @@ class TestConstruction(unittest.TestCase):
         self.assertEqual(Rational(3),Rational(3,1));self.assertEqual(Rational(False),Rational(0));self.assertEqual(Rational(True),Rational(1))
         self.assertEqual(Rational(Fraction(-6,8)),Rational(-3,4));self.assertEqual(Rational(0.1),Rational(*0.1.as_integer_ratio()));self.assertNotEqual(Rational(0.1),Rational('0.1'))
         self.assertEqual(Rational(complex(1.5,-0.0)),Rational(3,2));self.assertEqual(Rational(1,-2),Rational(-1,2))
+    def test_arity_and_unsupported_type_errors(self):
+        with self.assertRaises(TypeError):Rational()
+        with self.assertRaises(TypeError):Rational(1,2,3)
+        with self.assertRaises(TypeError):Rational(object())
     def test_nonreal_and_nonfinite(self):
         with self.assertRaises(TypeError):Rational(complex(1,1))
         for x in (float('inf'),float('-inf'),float('nan'),complex(float('inf'),0),complex(0,float('nan'))):
@@ -32,18 +43,76 @@ class TestConstruction(unittest.TestCase):
         before=(source._numerator,source._denominator,source._is_simplified,source._is_frozen)
         out=Rational(source);self.assertEqual(out,Rational(2));self.assertEqual((source._numerator,source._denominator,source._is_simplified,source._is_frozen),before)
 
+class TestConstructionTopology(unittest.TestCase):
+    def test_public_factory_does_not_occupy_instance_new(self):
+        self.assertNotIn('__new__',Rational.__dict__)
+        self.assertIs(Rational.__new__,object.__new__)
+        self.assertIsNot(type(Rational).__call__,type.__call__)
+    def test_known_canonical_constructor_does_not_reprove_gcd(self):
+        value=Fraction(1000000007,1000000009)
+        with patch('computable.rational.math.gcd',side_effect=AssertionError('unexpected gcd')):
+            r=Rational(value)
+        self.assertEqual(r,Rational(value.numerator,value.denominator))
+    def test_raw_cache_hit_precedes_gcd(self):
+        canonical=Rational(1000003,1000033)
+        working=copy.copy(canonical)
+        working._is_simplified=False  # conservative unknown, raw pair is still canonical
+        with patch('computable.rational.math.gcd',side_effect=AssertionError('cache hit should avoid gcd')):
+            result=Rational(working)
+        self.assertIs(result,canonical)
+    def test_known_canonical_working_path_does_not_gcd(self):
+        c=copy.copy(Rational(23,29))
+        with patch('computable.rational.math.gcd',side_effect=AssertionError('unexpected gcd')):
+            w=Rational._new_working_canonical(17,19)
+            n=-c;a=abs(c)
+        self.assertEqual(w,Rational(17,19));self.assertEqual(n,Rational(-23,29));self.assertEqual(a,Rational(23,29))
+    def test_hash_reuses_live_canonical_hash(self):
+        canonical=Rational(1000037,1000039)
+        w=Rational._new_working_canonical(canonical._numerator,canonical._denominator)
+        self.assertIsNone(w._hash)
+        with patch('computable.rational._hash_integer_ratio',side_effect=AssertionError('recomputed live canonical hash')):
+            h=hash(w)
+        self.assertEqual(h,hash(canonical));self.assertTrue(w._is_frozen)
+    def test_bounded_helpers_reuse_reduced_representation(self):
+        x=Rational(355,113)
+        with patch('math.gcd',side_effect=AssertionError('reproved reduced input gcd')):
+            left,right=x._bounded_denominator_bracket(100)
+        self.assertLessEqual(left,x);self.assertGreaterEqual(right,x)
+
 class TestLifecycle(unittest.TestCase):
     def test_constructor_frozen_copy_mutable(self):
         r=Rational(2,4);self.assertTrue(r._is_frozen);self.assertEqual((r.numerator,r.denominator),(1,2))
         w=copy.copy(r);self.assertIsNot(w,r);self.assertFalse(w._is_frozen);self.assertEqual(w,r)
+        self.assertEqual((w._numerator,w._denominator,w._is_simplified),(1,2,True))
+        self.assertEqual(w._hash,r._hash)
     def test_lazy_simplify_and_property_read(self):
-        w=copy.copy(Rational(1));w._numerator=8;w._denominator=12;w._is_simplified=False
-        self.assertEqual(w.numerator,2);self.assertEqual(w.denominator,3);self.assertFalse(w._is_frozen);self.assertTrue(w._is_simplified)
+        w=copy.copy(Rational(1));w._numerator=8;w._denominator=12;w._is_simplified=False;w._hash=None
+        self.assertIsNone(w.simplify());self.assertEqual((w._numerator,w._denominator),(2,3));self.assertFalse(w._is_frozen);self.assertTrue(w._is_simplified)
+        frozen=Rational(5,7);before=(frozen._numerator,frozen._denominator,frozen._hash)
+        self.assertIsNone(frozen.simplify());self.assertEqual((frozen._numerator,frozen._denominator,frozen._hash),before)
+    def test_bool_handles_unreduced_zero(self):
+        w=copy.copy(Rational(0));w._numerator=0;w._denominator=999;w._is_simplified=False;w._hash=None
+        self.assertFalse(bool(w));self.assertEqual((w._numerator,w._denominator),(0,999))
+    def test_noninplace_does_not_mutate_operands(self):
+        a=copy.copy(Rational(2,3));b=copy.copy(Rational(5,7));before_a=(a._numerator,a._denominator,a._is_simplified,a._is_frozen);before_b=(b._numerator,b._denominator,b._is_simplified,b._is_frozen)
+        result=a+b
+        self.assertIsNot(result,a);self.assertIsNot(result,b);self.assertFalse(result._is_frozen);self.assertEqual(a,Rational(2,3));self.assertEqual(b,Rational(5,7));self.assertEqual((a._numerator,a._denominator,a._is_simplified,a._is_frozen),before_a);self.assertEqual((b._numerator,b._denominator,b._is_simplified,b._is_frozen),before_b)
     def test_inplace_mutable_and_frozen(self):
         frozen=Rational(1,2);alias=frozen;frozen+=Rational(1,2);self.assertIs(alias,Rational(1,2));self.assertIsNot(frozen,alias);self.assertFalse(frozen._is_frozen);self.assertEqual(frozen,Rational(1))
         w=copy.copy(Rational(1,2));ident=id(w);w+=Rational(1,2);self.assertEqual(id(w),ident);self.assertEqual(w,Rational(1));self.assertFalse(w._is_frozen)
+    def test_mutable_inplace_allocates_no_rational_result(self):
+        w=copy.copy(Rational(1,3));other=Rational(1,5);ident=id(w)
+        original=Rational._allocate_working
+        with patch.object(Rational,'_allocate_working',side_effect=AssertionError('mutable inplace allocated')):
+            w+=other
+        self.assertEqual(id(w),ident);self.assertEqual(w,Rational(8,15))
+        # Frozen path must instead produce a fresh mutable object.
+        f=Rational(1,3)
+        with patch.object(Rational,'_allocate_working',wraps=original) as allocator:
+            f2=f.__iadd__(other)
+        self.assertEqual(allocator.call_count,1);self.assertIsNot(f2,f);self.assertFalse(f2._is_frozen)
     def test_setters_value_level_and_transactional(self):
-        w=copy.copy(Rational(1));w._numerator=4;w._denominator=4;w._is_simplified=False;w.numerator=2;self.assertEqual(w,Rational(2))
+        w=copy.copy(Rational(1));w._numerator=4;w._denominator=4;w._is_simplified=False;w._hash=None;w.numerator=2;self.assertEqual(w,Rational(2))
         w=copy.copy(Rational(3,5));w.denominator=Fraction(-2,3);self.assertEqual(w,Rational(-9,10));self.assertGreater(w._denominator,0)
         before=(w._numerator,w._denominator,w._is_simplified)
         with self.assertRaises(ZeroDivisionError):w.denominator=(False,True)
@@ -60,21 +129,23 @@ class TestLifecycle(unittest.TestCase):
             except OverflowError:continue
             if Fraction(*x.as_integer_ratio())==f:self.assertEqual(hash(r),hash(x))
         self.assertEqual(hash(Rational(1)),hash(True));self.assertEqual(hash(Rational(0)),hash(False));self.assertEqual(hash(Rational(1)),hash(complex(1,0)));self.assertEqual(hash(Rational(1,2)),hash(complex(0.5,0)))
+    def test_dict_and_set_hashing_freezes_working_value(self):
+        w=copy.copy(Rational(11,13));d={w:'value'};self.assertTrue(w._is_frozen);self.assertEqual(d[Rational(11,13)],'value')
+        u=copy.copy(Rational(-5,9));s={u};self.assertTrue(u._is_frozen);self.assertIn(Rational(-5,9),s)
     def test_intern_cache_hit_and_weakness(self):
         canonical=Rational(17,19);w=copy.copy(canonical);got=w.intern();self.assertIs(got,canonical);self.assertFalse(w._is_frozen);self.assertTrue(w._is_simplified)
         unique=Rational(123456789123456789,9876543211);key=(unique.numerator,unique.denominator);ref=weakref.ref(unique);del unique;gc.collect();self.assertIsNone(ref());self.assertNotIn(key,Rational._cache)
-        w=Rational._new_working(999999937,999999929);self.assertNotIn((999999937,999999929),Rational._cache);self.assertIs(w.intern(),w);self.assertTrue(w._is_frozen)
+        w=Rational._new_working_raw(999999937,999999929);self.assertNotIn((999999937,999999929),Rational._cache);self.assertIs(w.intern(),w);self.assertTrue(w._is_frozen)
 
 class TestArithmeticAndRecognition(unittest.TestCase):
     def test_field_identities(self):
         rng=random.Random(12345)
         for _ in range(500):
-            a=Rational(rng.randint(-1000,1000),rng.randint(1,1000));b=Rational(rng.randint(-1000,1000),rng.randint(1,1000));c=Rational(rng.randint(-1000,1000),rng.randint(1,1000))
-            af=Fraction(a.numerator,a.denominator);bf=Fraction(b.numerator,b.denominator)
-            self.assertEqual(Fraction((a+b).numerator,(a+b).denominator),af+bf)
-            self.assertEqual(Fraction((a-b).numerator,(a-b).denominator),af-bf)
-            self.assertEqual(Fraction((a*b).numerator,(a*b).denominator),af*bf)
-            if b:self.assertEqual(Fraction((a/b).numerator,(a/b).denominator),af/bf)
+            a=Rational(rng.randint(-1000,1000),rng.randint(1,1000));b=Rational(rng.randint(-1000,1000),rng.randint(1,1000));c=Rational(rng.randint(-1000,1000),rng.randint(1,1000));af=Fraction(a.numerator,a.denominator);bf=Fraction(b.numerator,b.denominator)
+            apb=a+b;amb=a-b;atb=a*b
+            self.assertEqual(Fraction(apb.numerator,apb.denominator),af+bf);self.assertEqual(Fraction(amb.numerator,amb.denominator),af-bf);self.assertEqual(Fraction(atb.numerator,atb.denominator),af*bf)
+            if b:
+                adb=a/b;self.assertEqual(Fraction(adb.numerator,adb.denominator),af/bf)
             self.assertEqual((a+b)-b,a);self.assertEqual(a*(b+c),a*b+a*c)
             if b:self.assertEqual((a*b)/b,a)
     def test_builtin_scalar_exactness(self):
@@ -89,6 +160,17 @@ class TestArithmeticAndRecognition(unittest.TestCase):
         with self.assertRaises(ZeroDivisionError):Rational(0)**-1
         for e in (1.5,Fraction(3,2),complex(2,1)):
             with self.assertRaises(TypeError):Rational(2)**e
+    def test_direct_integer_recognizer_avoids_rational_materialization(self):
+        registry=ExactSubdomainRegistry()
+        registry.register_rational(int,lambda value:(_ for _ in ()).throw(AssertionError('materialized Rational')))
+        registry.register_integer(int,int)
+        self.assertEqual(registry.recognize_integer_value(7),7)
+        w=Rational._new_working_raw(20,10)
+        self.assertFalse(w._is_simplified)
+        self.assertEqual(SUBDOMAINS.recognize_integer_value(w),2)
+        self.assertFalse(w._is_simplified)  # recognition preserves working representation
+        for v,expected in [(True,1),(2.0,2),(Fraction(-3,1),-3),(complex(4,-0.0),4)]:self.assertEqual(SUBDOMAINS.recognize_integer_value(v),expected)
+        for v in (1.5,Fraction(3,2),complex(1,2),Rational(3,2)):self.assertIsNone(SUBDOMAINS.recognize_integer_value(v))
     def test_decision_work_shared_recognizer(self):
         for value,steps in [(False,0),(0.0,0),(Rational(0),0),(True,1),(1.0,1),(Fraction(1,1),1),(complex(1,0),1),(Rational(1),1)]:
             calls=0
@@ -128,5 +210,4 @@ class TestPrivateHelpers(unittest.TestCase):
         near=x._nearest_bounded_denominator(5);candidates={Fraction(p,q) for q in range(1,6) for p in range(-10,11)};best=min(abs(c-Fraction(7,13)) for c in candidates);self.assertEqual(abs(Fraction(near.numerator,near.denominator)-Fraction(7,13)),best)
     def test_bulk_helpers(self):
         vals=[(1,2),(1,3),(1,6)];self.assertEqual(Rational._sum_integer_ratios(vals),Rational(1));self.assertEqual(Rational._product_integer_ratios(vals),Rational(1,36))
-
 if __name__=='__main__':unittest.main()
