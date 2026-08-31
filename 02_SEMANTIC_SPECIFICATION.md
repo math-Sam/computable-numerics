@@ -756,11 +756,11 @@ r.denominator = v
 
 $$
 \boxed{
-\frac{n}{d(p/q)}=\frac{nq}{dp}
+\frac{n}{p/q}=\frac{nq}{p}
 }.
 $$
 
-若 $p<0$，implementation 必把 sign 移到 numerator，使 `._denominator > 0`；結果仍可暫時 unreduced。
+也就是說，`denominator` setter 保留的是 assignment 前 canonical numerator $n$，而不是舊 denominator $d$；舊 $d$ 在新的 denominator coordinate 被設定後不再參與結果。若 $p<0$，implementation 必把 sign 移到 numerator，使 `._denominator > 0`；結果仍可暫時 unreduced。
 
 例如 mutable receiver 的 raw fields 即使暫時是 `(4,4)`，public read：
 
