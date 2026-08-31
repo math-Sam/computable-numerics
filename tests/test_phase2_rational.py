@@ -113,7 +113,11 @@ class TestLifecycle(unittest.TestCase):
         self.assertEqual(allocator.call_count,1);self.assertIsNot(f2,f);self.assertFalse(f2._is_frozen)
     def test_setters_value_level_and_transactional(self):
         w=copy.copy(Rational(1));w._numerator=4;w._denominator=4;w._is_simplified=False;w._hash=None;w.numerator=2;self.assertEqual(w,Rational(2))
-        w=copy.copy(Rational(3,5));w.denominator=Fraction(-2,3);self.assertEqual(w,Rational(-9,10));self.assertGreater(w._denominator,0)
+        w=copy.copy(Rational(3,5));w.numerator=Fraction(2,3);self.assertEqual(w,Rational(2,15))
+        w=copy.copy(Rational(3,5));w.denominator=Fraction(-2,3);self.assertEqual(w,Rational(-9,2));self.assertGreater(w._denominator,0)
+        # Setter semantics depend on canonical coordinates, not the raw working pair.
+        a=copy.copy(Rational(3,5));b=copy.copy(Rational(3,5));b._numerator=6;b._denominator=10;b._is_simplified=False;b._hash=None
+        a.denominator=Fraction(7,11);b.denominator=Fraction(7,11);self.assertEqual(a,Rational(33,7));self.assertEqual(b,a)
         before=(w._numerator,w._denominator,w._is_simplified)
         with self.assertRaises(ZeroDivisionError):w.denominator=(False,True)
         self.assertEqual((w._numerator,w._denominator,w._is_simplified),before)

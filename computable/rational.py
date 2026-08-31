@@ -311,8 +311,8 @@ class Rational(metaclass=_RationalMeta):
         if p == 0:
             raise ZeroDivisionError("Rational denominator assignment is zero")
         self.simplify()
-        n, d = self._numerator, self._denominator
-        new_n, new_d, known = _normalize_pair_no_gcd(n * q, d * p)
+        n = self._numerator
+        new_n, new_d, known = _normalize_pair_no_gcd(n * q, p)
         object.__setattr__(self, "_numerator", new_n)
         object.__setattr__(self, "_denominator", new_d)
         object.__setattr__(self, "_is_simplified", known)
