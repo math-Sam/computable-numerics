@@ -1,0 +1,46 @@
+name: Apply Rational setter spec correction
+
+on:
+  push:
+    branches:
+      - tmp-final-staging
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp-final-staging
+      - name: Patch semantic specification
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("02_SEMANTIC_SPECIFICATION.md")
+          text = path.read_text()
+
+          old_formula = r"\frac{n}{d(p/q)}=\frac{nq}{dp}"
+          new_formula = r"\frac{n}{p/q}=\frac{nq}{p}"
+          if text.count(old_formula) != 1:
+              raise SystemExit(f"expected exactly one old formula, found {text.count(old_formula)}")
+          text = text.replace(old_formula, new_formula, 1)
+
+          old_sentence = "若 $p<0$，implementation 必把 sign 移到 numerator，使 `._denominator > 0`；結果仍可暫時 unreduced。"
+          new_sentence = "也就是說，`denominator` setter 保留的是 assignment 前 canonical numerator $n$，而不是舊 denominator $d$；舊 $d$ 在新的 denominator coordinate 被設定後不再參與結果。若 $p<0$，implementation 必把 sign 移到 numerator，使 `._denominator > 0`；結果仍可暫時 unreduced。"
+          if text.count(old_sentence) != 1:
+              raise SystemExit(f"expected exactly one old sentence, found {text.count(old_sentence)}")
+          text = text.replace(old_sentence, new_sentence, 1)
+          path.write_text(text)
+          PY
+      - name: Commit correction and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 02_SEMANTIC_SPECIFICATION.md
+          git rm .github/workflows/apply-rational-setter-spec.yml
+          git commit -m "Correct Rational denominator setter specification"
+          git push origin HEAD:tmp-final-staging
