@@ -1,9 +1,7 @@
 """Resumable explicit computation boundary for potentially divergent work.
 
-Phase 1 implements the state machine and finite-step contract.  The complete
-cross-regime ExactIntegerInput recognizer is wired in a later phase; callers
-may already inject a finite work recognizer without importing concrete classes
-here.
+Phase 2 keeps the Phase-1 state machine and finite-step contract, while wiring
+``work`` through the shared guaranteed-finite exact integer-valued recognizer.
 """
 
 from __future__ import annotations
@@ -11,6 +9,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Generic, TypeVar
+
+from .promotion import SUBDOMAINS
 
 T = TypeVar("T")
 WorkRecognizer = Callable[[object], int]
@@ -32,19 +32,15 @@ class Resolved(Generic[T]):
     value: T
 
 
-def _phase1_work_recognizer(value: object) -> int:
-    """Bootstrap work recognizer used until the shared exact recognizer exists.
+def _shared_work_recognizer(value: object) -> int:
+    """Recognize ``work`` by exact mathematical integer value, finitely."""
 
-    Python ``bool`` is intentionally accepted through the Python ``int`` rule.
-    This function is finite and does not inspect concrete numeric classes.
-    """
-
-    if not isinstance(value, int):
+    result = SUBDOMAINS.recognize_integer_value(value)
+    if result is None:
         raise TypeError(
-            "Phase-1 DecisionProcess work accepts Python integer values; "
-            "the shared exact integer-valued numeric recognizer is installed in a later phase"
+            "work must be a guaranteed-finite exact integer-valued numeric input"
         )
-    return int(value)
+    return result
 
 
 class DecisionProcess(Generic[T]):
@@ -76,7 +72,7 @@ class DecisionProcess(Generic[T]):
         if work_recognizer is not None and not callable(work_recognizer):
             raise TypeError("work_recognizer must be callable")
         self._transition = transition
-        self._work_recognizer = work_recognizer or _phase1_work_recognizer
+        self._work_recognizer = work_recognizer or _shared_work_recognizer
         self._resolved: Resolved[T] | None = None
         self._terminal_exception: BaseException | None = None
         self._transition_count = 0
@@ -106,7 +102,7 @@ class DecisionProcess(Generic[T]):
         """Advance by at most ``work`` cooperative finite transitions."""
 
         amount = self._work_recognizer(work)
-        if not isinstance(amount, int):
+        if not isinstance(amount, int) or isinstance(amount, bool):
             raise TypeError("work recognizer must return an ordinary Python int")
         if amount < 0:
             raise ValueError(f"work must be non-negative, got {amount}")

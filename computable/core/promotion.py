@@ -1,7 +1,7 @@
-"""Acyclic registries for finite promotion and exact conversion routing.
+"""Acyclic registries for finite promotion, conversion, and exact recognition.
 
-Phase 1 only establishes registration/lookup mechanics.  Numeric conversion
-algorithms and downgrade-first promotion rules are added in later phases.
+Phase 2 preserves the Phase-1 registration/lookup mechanics and adds the
+concrete-class-free guaranteed-finite subdomain-recognition substrate.
 """
 
 from __future__ import annotations
@@ -11,6 +11,8 @@ from typing import Any, TypeAlias
 
 ConversionFunction: TypeAlias = Callable[[Any], Any]
 PromotionFunction: TypeAlias = Callable[[Any, Any], tuple[Any, Any, type]]
+RecognitionFunction: TypeAlias = Callable[[Any], Any | None]
+IntegerRecognitionFunction: TypeAlias = Callable[[Any], int | None]
 
 
 class ConversionRegistry:
@@ -35,7 +37,9 @@ class ConversionRegistry:
             raise TypeError("conversion function must be callable")
         key = (source, target)
         if key in self._conversions and not replace:
-            raise ValueError(f"conversion already registered: {source.__name__} -> {target.__name__}")
+            raise ValueError(
+                f"conversion already registered: {source.__name__} -> {target.__name__}"
+            )
         self._conversions[key] = function
 
     def get(self, source: type, target: type) -> ConversionFunction | None:
@@ -60,9 +64,7 @@ class ConversionRegistry:
 class PromotionRegistry:
     """Registry for pair-promotion strategies.
 
-    A strategy is keyed by the post-downgrade concrete operand classes.  The
-    strategy itself is intentionally left generic in Phase 1 so later phases
-    can implement the specification's mathematical-value-first routing.
+    A strategy is keyed by the post-downgrade concrete operand classes.
     """
 
     __slots__ = ("_promotions",)
@@ -84,7 +86,9 @@ class PromotionRegistry:
             raise TypeError("promotion function must be callable")
         key = (left, right)
         if key in self._promotions and not replace:
-            raise ValueError(f"promotion already registered: {left.__name__}, {right.__name__}")
+            raise ValueError(
+                f"promotion already registered: {left.__name__}, {right.__name__}"
+            )
         self._promotions[key] = function
 
     def get(self, left: type, right: type) -> PromotionFunction | None:
@@ -103,3 +107,95 @@ class PromotionRegistry:
 
     def __len__(self) -> int:
         return len(self._promotions)
+
+
+class ExactSubdomainRegistry:
+    """Guaranteed-finite mathematical-value-first subdomain recognizers.
+
+    Recognition tables are separate because asking whether a value is an exact
+    integer must not require materializing a Rational merely as an intermediate
+    representation.  A rational fallback remains available for future exact
+    types that have not yet installed a direct integer recognizer.
+    """
+
+    __slots__ = ("_rational", "_gaussian", "_integer")
+
+    def __init__(self) -> None:
+        self._rational: dict[type, RecognitionFunction] = {}
+        self._gaussian: dict[type, RecognitionFunction] = {}
+        self._integer: dict[type, IntegerRecognitionFunction] = {}
+
+    @staticmethod
+    def _register(
+        table: dict,
+        source: type,
+        function: Callable,
+        replace: bool,
+    ) -> None:
+        if not isinstance(source, type):
+            raise TypeError("source must be a class")
+        if not callable(function):
+            raise TypeError("recognizer must be callable")
+        if source in table and not replace:
+            raise ValueError(f"recognizer already registered for {source.__name__}")
+        table[source] = function
+
+    def register_rational(
+        self,
+        source: type,
+        function: RecognitionFunction,
+        *,
+        replace: bool = False,
+    ) -> None:
+        self._register(self._rational, source, function, replace)
+
+    def register_gaussian_rational(
+        self,
+        source: type,
+        function: RecognitionFunction,
+        *,
+        replace: bool = False,
+    ) -> None:
+        self._register(self._gaussian, source, function, replace)
+
+    def register_integer(
+        self,
+        source: type,
+        function: IntegerRecognitionFunction,
+        *,
+        replace: bool = False,
+    ) -> None:
+        self._register(self._integer, source, function, replace)
+
+    def recognize_rational_value(self, value: Any) -> Any | None:
+        function = self._rational.get(type(value))
+        return None if function is None else function(value)
+
+    def recognize_gaussian_rational_value(self, value: Any) -> Any | None:
+        function = self._gaussian.get(type(value))
+        return None if function is None else function(value)
+
+    def recognize_integer_value(self, value: Any) -> int | None:
+        direct = self._integer.get(type(value))
+        if direct is not None:
+            return direct(value)
+
+        # Compatibility/future-phase fallback: only materialize a Rational when
+        # no direct mathematical integer recognizer was registered for the type.
+        rational = self.recognize_rational_value(value)
+        if rational is None:
+            return None
+        if rational.denominator != 1:
+            return None
+        return int(rational.numerator)
+
+    def recognize_nonnegative_integer_value(self, value: Any) -> int | None:
+        result = self.recognize_integer_value(value)
+        return result if result is not None and result >= 0 else None
+
+    def recognize_positive_rational_value(self, value: Any) -> Any | None:
+        rational = self.recognize_rational_value(value)
+        return rational if rational is not None and rational.numerator > 0 else None
+
+
+SUBDOMAINS = ExactSubdomainRegistry()

@@ -11,7 +11,12 @@ from .errors import (
 from .family import NumericFamily
 from .kinds import NumericKind, Order, Relation
 from .knowledge import AppendOnlyKnowledgeStore, KnowledgeRecord, KnowledgeStore
-from .promotion import ConversionRegistry, PromotionRegistry
+from .promotion import (
+    ConversionRegistry,
+    ExactSubdomainRegistry,
+    PromotionRegistry,
+    SUBDOMAINS,
+)
 
 __all__ = [
     "AppendOnlyKnowledgeStore",
@@ -19,6 +24,7 @@ __all__ = [
     "ComputableError",
     "ConversionRegistry",
     "DecisionProcess",
+    "ExactSubdomainRegistry",
     "InconsistentKnowledgeError",
     "InvalidCertificateError",
     "KnowledgeRecord",
@@ -31,5 +37,6 @@ __all__ = [
     "ProvenanceKind",
     "Relation",
     "Resolved",
+    "SUBDOMAINS",
     "UnresolvedDomainError",
 ]

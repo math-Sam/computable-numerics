@@ -7,7 +7,7 @@ from .complex import ComputableComplex
 from .core.family import NumericFamily, bind_family
 from .core.promotion import ConversionRegistry, PromotionRegistry
 from .gaussian_rational import GaussianRational
-from .rational import Rational
+from .rational import Rational, register_phase2_recognizers
 from .real import ComputableReal
 
 NUMERIC_FAMILY = NumericFamily(
@@ -25,10 +25,11 @@ _BOOTSTRAPPED = False
 
 
 def bootstrap() -> NumericFamily:
-    """Idempotently link concrete classes after all class modules are loaded."""
+    """Idempotently link concrete classes and finite Phase-2 bridges."""
 
     global _BOOTSTRAPPED
     if not _BOOTSTRAPPED:
         bind_family(NUMERIC_FAMILY)
+        register_phase2_recognizers(CONVERSIONS)
         _BOOTSTRAPPED = True
     return NUMERIC_FAMILY
